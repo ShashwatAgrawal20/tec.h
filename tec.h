@@ -8,6 +8,8 @@
 #define RED "\x1b[31m"
 #define GREEN "\x1b[32m"
 #define COLOR_RESET "\x1b[0m"
+#define TEST_FUNCTIONS(...) \
+    (void (*[])(void)) { __VA_ARGS__, NULL }
 
 typedef struct {
     size_t total_tests;
@@ -21,7 +23,7 @@ static test_result_t test_results = {0, 0, 0, NULL, 0};
 static inline void print_test_results(void);
 static inline void cleanup_tests(void);
 
-static inline void init_test(void (*function)(void)) {
+static inline void tec_test_run(void (*function[])(void)) {
     test_results.total_tests = 0;
     test_results.passed_tests = 0;
     test_results.failed_tests = 0;
@@ -34,7 +36,10 @@ static inline void init_test(void (*function)(void)) {
         exit(EXIT_FAILURE);
     }
 
-    function();
+    for (size_t i = 0; function[i] != NULL; ++i) {
+        function[i]();
+    }
+
     print_test_results();
     cleanup_tests();
 }
@@ -119,6 +124,8 @@ static inline void add_failed_message(const char *message, const char *file,
         }                                                                      \
     } while (0)
 
+// TODO:- I really want the status to be more like rust tests. those ok and fail
+// kinda stuff.
 static inline void print_test_results() {
     printf("\nTest Results:\n");
     printf("Total tests: %zu\n", test_results.total_tests);
