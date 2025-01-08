@@ -2,7 +2,7 @@
 CC = clang
 CFLAGS = -Wall -Wextra
 
-TARGET = tec_test
+TARGET = tec
 SOURCES = ./tec.c
 
 all: $(TARGET)
