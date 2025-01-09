@@ -20,10 +20,11 @@ typedef struct {
 } test_result_t;
 
 static test_result_t test_results = {0, 0, 0, NULL, 0};
+static int current_test_failed = 0;
 static inline void print_test_results(void);
 static inline void cleanup_tests(void);
 
-static inline void tec_test_run(void (*function[])(void)) {
+static inline void tec_test_run(void (*function[])(void), size_t size) {
     test_results.total_tests = 0;
     test_results.passed_tests = 0;
     test_results.failed_tests = 0;
@@ -36,8 +37,19 @@ static inline void tec_test_run(void (*function[])(void)) {
         exit(EXIT_FAILURE);
     }
 
+    printf("running %zu tests\n", size - 1);
     for (size_t i = 0; function[i] != NULL; ++i) {
+        test_results.total_tests++;
+        current_test_failed = 0;
+        printf("test %s ... ", "FUNCTION_NAME_TEMPLATE");
         function[i]();
+        if (current_test_failed) {
+            test_results.failed_tests++;
+            printf("%sFAILED%s\n", RED, COLOR_RESET);
+        } else {
+            test_results.passed_tests++;
+            printf("%sok%s\n", GREEN, COLOR_RESET);
+        }
     }
 
     print_test_results();
@@ -79,16 +91,12 @@ static inline void add_failed_message(const char *message, const char *file,
     snprintf(full_message, 256, "%s (File: %s, Line: %d)", message, file, line);
 
     test_results.failed_messages[test_results.failed_tests] = full_message;
-    test_results.failed_tests++;
+    current_test_failed = 1;
 }
 
 #define ASSERT_TRUE(condition)                                            \
     do {                                                                  \
-        test_results.total_tests++;                                       \
-        if (condition) {                                                  \
-            test_results.passed_tests++;                                  \
-        } else {                                                          \
-            test_results.failed_tests;                                    \
+        if (!(condition)) {                                               \
             add_failed_message("Assertion failed: " #condition, __FILE__, \
                                __LINE__);                                 \
         }                                                                 \
@@ -98,11 +106,7 @@ static inline void add_failed_message(const char *message, const char *file,
 
 #define ASSERT_EQUAL(expected, actual)                                  \
     do {                                                                \
-        test_results.total_tests++;                                     \
-        if ((expected) == (actual)) {                                   \
-            test_results.passed_tests++;                                \
-        } else {                                                        \
-            test_results.failed_tests;                                  \
+        if ((expected) != (actual)) {                                   \
             char message[256];                                          \
             snprintf(message, sizeof(message), "Expected: %d, Got: %d", \
                      (expected), (actual));                             \
@@ -112,11 +116,7 @@ static inline void add_failed_message(const char *message, const char *file,
 
 #define ASSERT_STR_EQUAL(expected, actual)                                     \
     do {                                                                       \
-        test_results.total_tests++;                                            \
-        if (strcmp((expected), (actual)) == 0) {                               \
-            test_results.passed_tests++;                                       \
-        } else {                                                               \
-            test_results.failed_tests;                                         \
+        if (strcmp((expected), (actual)) != 0) {                               \
             char message[256];                                                 \
             snprintf(message, sizeof(message), "Expected string: %s, Got: %s", \
                      (expected), (actual));                                    \
@@ -127,19 +127,17 @@ static inline void add_failed_message(const char *message, const char *file,
 // TODO:- I really want the status to be more like rust tests. those ok and fail
 // kinda stuff.
 static inline void print_test_results() {
-    printf("\nTest Results:\n");
-    printf("Total tests: %zu\n", test_results.total_tests);
-    printf(GREEN "Passed tests: %zu\n" COLOR_RESET, test_results.passed_tests);
-
     if (test_results.failed_tests > 0) {
-        printf(RED "Failed tests: %zu\n" COLOR_RESET,
-               test_results.failed_tests);
-        printf("\nFailed test details:\n");
+        printf("\nfailures:\n\n");
         for (size_t i = 0; i < test_results.failed_tests; ++i) {
-            printf(RED "%zu. %s\n" COLOR_RESET, i + 1,
-                   test_results.failed_messages[i]);
+            printf("%s%s%s\n", RED, test_results.failed_messages[i],
+                   COLOR_RESET);
         }
     }
+    printf("\ntest result: %s%s%s. %zu passed; %zu failed\n",
+           test_results.failed_tests > 0 ? RED : GREEN,
+           test_results.failed_tests > 0 ? "failed" : "passed", COLOR_RESET,
+           test_results.passed_tests, test_results.failed_tests);
 }
 
 #endif
