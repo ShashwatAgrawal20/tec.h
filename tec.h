@@ -108,8 +108,8 @@ static inline void add_failed_message(const char *message, const char *file,
     do {                                                                \
         if ((expected) != (actual)) {                                   \
             char message[256];                                          \
-            snprintf(message, sizeof(message), "Expected: %d, Got: %d", \
-                     (expected), (actual));                             \
+            snprintf(message, sizeof(message), "Expected: %s, Got: %s", \
+                     #expected, #actual);                               \
             add_failed_message(message, __FILE__, __LINE__);            \
         }                                                               \
     } while (0)
