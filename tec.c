@@ -4,13 +4,13 @@ int add(int a, int b) { return a + b; }
 
 void test_equal() {
     ASSERT_EQUAL(5, add(3, 2));
-    ASSERT_EQUAL(2, add(1, 1));
+    ASSERT_NOT_EQUAL(3, add(1, 1));
     ASSERT_EQUAL(-2, add(-1, -1));
 }
 
 void test_strings() {
-    ASSERT_STR_EQUAL("moron", "Moron");
-    ASSERT_STR_EQUAL("moron", "moron");
+    ASSERT_STR_EQUAL("yoo", "Yoo");
+    ASSERT_STR_EQUAL("yoo", "yoo");
 }
 
 void test_comparisions() {

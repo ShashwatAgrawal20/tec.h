@@ -114,6 +114,19 @@ static inline void add_failed_message(const char *message, const char *file,
         }                                                               \
     } while (0)
 
+#define ASSERT_NOT_EQUAL(expected, actual)                                \
+    do {                                                                  \
+        typeof(expected) _expected = (expected);                          \
+        typeof(actual) _actual = (actual);                                \
+        if (_expected == _actual) {                                       \
+            char message[256];                                            \
+            snprintf(message, sizeof(message),                            \
+                     "Expected '%s' (%d) to be different from '%s' (%d)", \
+                     #expected, _expected, #actual, _actual);             \
+            add_failed_message(message, __FILE__, __LINE__);              \
+        }                                                                 \
+    } while (0)
+
 #define ASSERT_STR_EQUAL(expected, actual)                                     \
     do {                                                                       \
         if (strcmp((expected), (actual)) != 0) {                               \
