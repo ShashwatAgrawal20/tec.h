@@ -19,13 +19,13 @@ int add(int a, int b) { return a + b; }
 
 void test_equal() {
     ASSERT_EQUAL(5, add(3, 2));
-    ASSERT_EQUAL(2, add(1, 1));
+    ASSERT_NOT_EQUAL(3, add(1, 1));
     ASSERT_EQUAL(-2, add(-1, -1));
 }
 
 void test_strings() {
-    ASSERT_STR_EQUAL("moron", "Moron");
-    ASSERT_STR_EQUAL("moron", "moron");
+    ASSERT_STR_NOT_EQUAL("yoo", "Yoo");
+    ASSERT_STR_EQUAL("yoo", "yoo");
 }
 
 void test_comparisions() {
@@ -34,10 +34,12 @@ void test_comparisions() {
 }
 
 int main() {
-    void (*test_functions[])(void) =
-        TEST_FUNCTIONS(test_equal, test_strings, test_comparisions);
-    tec_test_run(test_functions,
-                 (sizeof(test_functions) / sizeof(test_functions[0])));
+    test_case_t tests[] =
+        TEST_SUITE(TEST_FUNCTION(test_equal), TEST_FUNCTION(test_strings),
+                   TEST_FUNCTION(test_comparisions));
+
+    tec_test_run(tests);
+
     return 0;
 }
 ```
