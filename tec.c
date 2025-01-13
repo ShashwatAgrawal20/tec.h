@@ -9,7 +9,7 @@ void test_equal() {
 }
 
 void test_strings() {
-    ASSERT_STR_EQUAL("yoo", "Yoo");
+    ASSERT_STR_NOT_EQUAL("yoo", "Yoo");
     ASSERT_STR_EQUAL("yoo", "yoo");
 }
 
@@ -21,9 +21,11 @@ void test_comparisions() {
 // TODO:- make the assert equal work with floats as the float comparision is
 // always going to be true. one can use double as of now.
 int main() {
-    void (*test_functions[])(void) =
-        TEST_FUNCTIONS(test_equal, test_strings, test_comparisions);
-    tec_test_run(test_functions,
-                 (sizeof(test_functions) / sizeof(test_functions[0])));
+    test_case_t tests[] =
+        TEST_SUITE(TEST_FUNCTION(test_equal), TEST_FUNCTION(test_strings),
+                   TEST_FUNCTION(test_comparisions));
+
+    tec_test_run(tests);
+
     return 0;
 }
