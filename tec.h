@@ -48,17 +48,15 @@ typedef struct {
         }                                                               \
     } while (0)
 
-#define ASSERT_NOT_EQUAL(expected, actual)                                \
-    do {                                                                  \
-        typeof(expected) _expected = (expected);                          \
-        typeof(actual) _actual = (actual);                                \
-        if (_expected == _actual) {                                       \
-            char message[256];                                            \
-            snprintf(message, sizeof(message),                            \
-                     "Expected '%s' (%d) to be different from '%s' (%d)", \
-                     #expected, _expected, #actual, _actual);             \
-            add_failed_message(message, __FILE__, __LINE__);              \
-        }                                                                 \
+#define ASSERT_NOT_EQUAL(expected, actual)                                  \
+    do {                                                                    \
+        if (expected == actual) {                                           \
+            char message[256];                                              \
+            snprintf(message, sizeof(message),                              \
+                     "Expected '%s' to be different from '%s' ", #expected, \
+                     #actual);                                              \
+            add_failed_message(message, __FILE__, __LINE__);                \
+        }                                                                   \
     } while (0)
 
 #define ASSERT_STR_EQUAL(expected, actual)                                     \
@@ -80,6 +78,23 @@ typedef struct {
                      (expected));                                            \
             add_failed_message(message, __FILE__, __LINE__);                 \
         }                                                                    \
+    } while (0)
+
+// this thing is currently bound to `%d` but i don't like that thought of using
+// `_Generic` from C11 but it ain't working like the way I want it to work.
+// Looking for some way to have something like `printf("hello " format, value);
+#define ASSERT_ARRAY_EQUAL(expected, actual, length)                      \
+    do {                                                                  \
+        for (size_t i = 0; i < (length); ++i) {                           \
+            if ((expected)[i] != (actual)[i]) {                           \
+                char message[256];                                        \
+                snprintf(message, sizeof(message),                        \
+                         "Mismatch at index %zu: expected %d, got %d", i, \
+                         (expected)[i], (actual)[i]);                     \
+                add_failed_message(message, __FILE__, __LINE__);          \
+                break;                                                    \
+            }                                                             \
+        }                                                                 \
     } while (0)
 
 /*******************************************************************************

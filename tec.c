@@ -1,6 +1,22 @@
 #include "tec.h"
 
+int *fibb(int *fibo) {
+    int i;
+    fibo[0] = 0;
+    fibo[1] = 1;
+    for (i = 2; i <= 9; i++) {
+        fibo[i] = fibo[i - 1] + fibo[i - 2];
+    }
+    return fibo;
+}
+
 int add(int a, int b) { return a + b; }
+
+void test_fibo() {
+    int expected_fibo[10] = {0, 1, 1, 2, 3, 5, 8, 13, 21, 34};
+    int fibo[10] = {0};
+    ASSERT_ARRAY_EQUAL(expected_fibo, fibb(fibo), 10);
+}
 
 void test_equal() {
     ASSERT_EQUAL(5, add(3, 2));
@@ -23,9 +39,11 @@ void test_comparisions() {
 int main() {
     test_case_t tests[] =
         TEST_SUITE(TEST_FUNCTION(test_equal), TEST_FUNCTION(test_strings),
-                   TEST_FUNCTION(test_comparisions));
+                   TEST_FUNCTION(test_comparisions), TEST_FUNCTION(test_fibo));
 
     tec_test_run(tests);
+
+    // printf("%f", a);
 
     return 0;
 }
