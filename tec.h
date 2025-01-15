@@ -14,6 +14,15 @@ typedef struct {
 #define GREEN "\x1b[32m"
 #define COLOR_RESET "\x1b[0m"
 
+/**/
+
+#define type_to_format_specifier(T) \
+    _Generic((T),                   \
+        int: "%d",                  \
+        float: "%f",                \
+        double: "%lf",              \
+        unsigned long: "%zu",       \
+        default: NULL)
 /*******************************************************************************
                TEST INIT AND DECLARATION: WHERE LEGENDS ARE MADE
 *******************************************************************************/
@@ -80,21 +89,46 @@ typedef struct {
         }                                                                    \
     } while (0)
 
-// this thing is currently bound to `%d` but i don't like that thought of using
+// this thing is currently bound to `%d` but i don't like that thought of
+// using
 // `_Generic` from C11 but it ain't working like the way I want it to work.
-// Looking for some way to have something like `printf("hello " format, value);
-#define ASSERT_ARRAY_EQUAL(expected, actual, length)                      \
-    do {                                                                  \
-        for (size_t i = 0; i < (length); ++i) {                           \
-            if ((expected)[i] != (actual)[i]) {                           \
-                char message[256];                                        \
-                snprintf(message, sizeof(message),                        \
-                         "Mismatch at index %zu: expected %d, got %d", i, \
-                         (expected)[i], (actual)[i]);                     \
-                add_failed_message(message, __FILE__, __LINE__);          \
-                break;                                                    \
-            }                                                             \
-        }                                                                 \
+// Looking for some way to have something like `printf("hello " format,
+// value);
+//
+//
+// PS: ok so the thing is that I got it somewhat working by using some extra
+// buffers and stuff, but still it heavily depends on the `_Generic` from C11
+// and the current approach is only taking some of the datatypes in it's mind
+// but I'll add those later ig cause I don't waana get too messy as of now, I
+// might even have a global heap allocated buffers maybe so that we don't have
+// to make those temp buffer every fucking time 🤔 ahh but the thing is that
+// those things are going to have their own tradeoffs too as the main memory is
+// fucking slow
+#define ASSERT_ARRAY_EQUAL(expected, actual, length)                       \
+    do {                                                                   \
+        char message[256];                                                 \
+        const char *format_spec = type_to_format_specifier((expected)[0]); \
+        if (!format_spec) {                                                \
+            char message[256];                                             \
+            snprintf(message, sizeof(message),                             \
+                     "Unsupported type for array comparison");             \
+            add_failed_message(message, __FILE__, __LINE__);               \
+            break;                                                         \
+        }                                                                  \
+        for (size_t i = 0; i < (length); ++i) {                            \
+            if ((expected)[i] != (actual)[i]) {                            \
+                char expected_str[64], actual_str[64];                     \
+                snprintf(expected_str, sizeof(expected_str), format_spec,  \
+                         (expected)[i]);                                   \
+                snprintf(actual_str, sizeof(actual_str), format_spec,      \
+                         (actual)[i]);                                     \
+                snprintf(message, sizeof(message),                         \
+                         "Mismatch at index %zu: expected %s, got %s", i,  \
+                         expected_str, actual_str);                        \
+                add_failed_message(message, __FILE__, __LINE__);           \
+                break;                                                     \
+            }                                                              \
+        }                                                                  \
     } while (0)
 
 /*******************************************************************************

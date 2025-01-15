@@ -1,5 +1,7 @@
 #include "tec.h"
 
+#include <stdint.h>
+
 int *fibb(int *fibo) {
     int i;
     fibo[0] = 0;
@@ -16,6 +18,21 @@ void test_fibo() {
     int expected_fibo[10] = {0, 1, 1, 2, 3, 5, 8, 13, 21, 34};
     int fibo[10] = {0};
     ASSERT_ARRAY_EQUAL(expected_fibo, fibb(fibo), 10);
+}
+
+void test_multiple_array_types() {
+    int expected_int_arr[10] = {0, 1, 1, 2, 3, 5, 8, 13, 21, 34};
+    int actual_int_arr[10] = {0, 1, 1, 2, 3, 5, 8, 13, 21, 34};
+    float expected_float_arr[3] = {1.1, 2.2, 3.3};
+    float actual_float_arr[3] = {1.1, 2.2, 3.3};
+    double expected_double_arr[3] = {1.1, 2.2, 3.3};
+    double actual_double_arr[3] = {1.1, 2.2, 3.3};
+    size_t expected_size_t_arr[3] = {0xff, 1, 0};
+    size_t actual_size_t_arr[3] = {0xff, 1, 0};
+    ASSERT_ARRAY_EQUAL(expected_int_arr, actual_int_arr, 10);
+    ASSERT_ARRAY_EQUAL(expected_float_arr, actual_float_arr, 3);
+    ASSERT_ARRAY_EQUAL(expected_double_arr, actual_double_arr, 3);
+    ASSERT_ARRAY_EQUAL(expected_size_t_arr, actual_size_t_arr, 3);
 }
 
 void test_equal() {
@@ -39,11 +56,10 @@ void test_comparisions() {
 int main() {
     test_case_t tests[] =
         TEST_SUITE(TEST_FUNCTION(test_equal), TEST_FUNCTION(test_strings),
-                   TEST_FUNCTION(test_comparisions), TEST_FUNCTION(test_fibo));
+                   TEST_FUNCTION(test_comparisions), TEST_FUNCTION(test_fibo),
+                   TEST_FUNCTION(test_multiple_array_types));
 
     tec_test_run(tests);
-
-    // printf("%f", a);
 
     return 0;
 }

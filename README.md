@@ -9,7 +9,7 @@ interface for writing and running unit tests with minimal setup.
 
 ## QUICK EXAMPLE
 The only file you need from here is
-[nob.h](https://github.com/ShashwatAgrawal20/tec.h/blob/main/tec.h). Just
+[tec.h](https://github.com/ShashwatAgrawal20/tec.h/blob/main/tec.h). Just
 copy-paste it to your project and start using it.
 ```c
 // tec.c
