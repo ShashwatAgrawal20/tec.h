@@ -13,8 +13,7 @@ typedef struct {
 #define RED "\x1b[31m"
 #define GREEN "\x1b[32m"
 #define COLOR_RESET "\x1b[0m"
-
-/**/
+#define MAX_MESSAGE_LENGTH 256
 
 #define type_to_format_specifier(T) \
     _Generic((T),                   \
@@ -56,7 +55,7 @@ typedef struct {
 #define ASSERT_EQUAL(expected, actual)                                  \
     do {                                                                \
         if ((expected) != (actual)) {                                   \
-            char message[256];                                          \
+            char message[MAX_MESSAGE_LENGTH];                           \
             snprintf(message, sizeof(message), "Expected: %s, Got: %s", \
                      #expected, #actual);                               \
             add_failed_message(message, __FILE__, __LINE__);            \
@@ -66,7 +65,7 @@ typedef struct {
 #define ASSERT_NOT_EQUAL(expected, actual)                                  \
     do {                                                                    \
         if (expected == actual) {                                           \
-            char message[256];                                              \
+            char message[MAX_MESSAGE_LENGTH];                               \
             snprintf(message, sizeof(message),                              \
                      "Expected '%s' to be different from '%s' ", #expected, \
                      #actual);                                              \
@@ -74,10 +73,16 @@ typedef struct {
         }                                                                   \
     } while (0)
 
+/*
+This string comparision shit is crap btw as the buffer is pretty much
+prone to overflow... shit ig i need to come up with some clever failure message
+for string maybe not avoid those `expected` and `actual` strings in the first
+place.
+*/
 #define ASSERT_STR_EQUAL(expected, actual)                                     \
     do {                                                                       \
         if (strcmp((expected), (actual)) != 0) {                               \
-            char message[256];                                                 \
+            char message[MAX_MESSAGE_LENGTH];                                  \
             snprintf(message, sizeof(message), "Expected string: %s, Got: %s", \
                      (expected), (actual));                                    \
             add_failed_message(message, __FILE__, __LINE__);                   \
@@ -87,7 +92,7 @@ typedef struct {
 #define ASSERT_STR_NOT_EQUAL(expected, actual)                               \
     do {                                                                     \
         if (strcmp((expected), (actual)) == 0) {                             \
-            char message[256];                                               \
+            char message[MAX_MESSAGE_LENGTH];                                \
             snprintf(message, sizeof(message),                               \
                      "Strings are identical but should differ: (value)%s, ", \
                      (expected));                                            \
@@ -101,14 +106,10 @@ buffers and stuff, but still it heavily depends on the `_Generic` from C11
 
 NOTE: This ain't check for type differences between `expected` and
 `actual`.
-
-FUTURE TODOS:
-- Add more data type support to `_Generic` as needed.
-- type check the expected and actual too
 */
 #define ASSERT_ARRAY_EQUAL(expected, actual, length)                       \
     do {                                                                   \
-        char message[256];                                                 \
+        char message[MAX_MESSAGE_LENGTH];                                  \
         const char *format_spec = type_to_format_specifier((expected)[0]); \
         if (!format_spec) {                                                \
             snprintf(message, sizeof(message),                             \
@@ -135,15 +136,17 @@ FUTURE TODOS:
 /*******************************************************************************
                          TEST RUNNER: WE DON'T JUDGE 😁
 *******************************************************************************/
+
 typedef struct {
     size_t total_tests;
     size_t passed_tests;
-    size_t failed_tests;
+    size_t total_assertions;
+    size_t failed_assertions;
     char **failed_messages;
     size_t failed_capacity;
 } test_result_t;
 
-static test_result_t test_results = {0, 0, 0, NULL, 0};
+static test_result_t test_results = {0, 0, 0, 0, NULL, 0};
 static int current_test_failed = 0;
 
 static inline void print_test_results(void);
@@ -155,7 +158,8 @@ static inline void tec_test_run(test_case_t test_cases[]) {
     test_results =
         (test_result_t){.total_tests = 0,
                         .passed_tests = 0,
-                        .failed_tests = 0,
+                        .total_assertions = 0,
+                        .failed_assertions = 0,
                         .failed_messages = (char **)malloc(sizeof(char *) * 10),
                         .failed_capacity = 10};
 
@@ -179,7 +183,6 @@ static inline void tec_test_run(test_case_t test_cases[]) {
         test->func();
 
         if (current_test_failed) {
-            test_results.failed_tests++;
             printf("%sFAILED%s\n", RED, COLOR_RESET);
         } else {
             test_results.passed_tests++;
@@ -193,7 +196,7 @@ static inline void tec_test_run(test_case_t test_cases[]) {
 
 static inline void add_failed_message(const char *message, const char *file,
                                       int line) {
-    if (test_results.failed_tests >= test_results.failed_capacity) {
+    if (test_results.failed_assertions >= test_results.failed_capacity) {
         size_t new_capacity = test_results.failed_capacity * 2;
         char **new_messages = (char **)realloc(test_results.failed_messages,
                                                sizeof(char *) * new_capacity);
@@ -216,13 +219,14 @@ static inline void add_failed_message(const char *message, const char *file,
     }
 
     snprintf(full_message, 256, "%s (File: %s, Line: %d)", message, file, line);
-    test_results.failed_messages[test_results.failed_tests] = full_message;
+    test_results.failed_messages[test_results.failed_assertions++] =
+        full_message;
     current_test_failed = 1;
 }
 
 static inline void cleanup_tests() {
     if (test_results.failed_messages) {
-        for (size_t i = 0; i < test_results.failed_tests; ++i) {
+        for (size_t i = 0; i < test_results.failed_assertions; ++i) {
             free(test_results.failed_messages[i]);
         }
         free(test_results.failed_messages);
@@ -231,9 +235,9 @@ static inline void cleanup_tests() {
 }
 
 static inline void print_test_results() {
-    if (test_results.failed_tests > 0) {
+    if (test_results.failed_assertions > 0) {
         printf("\nfailures:\n\n");
-        for (size_t i = 0; i < test_results.failed_tests; ++i) {
+        for (size_t i = 0; i < test_results.failed_assertions; ++i) {
             // printf("%s%s%s\n", RED, test_results.failed_messages[i],
             //        COLOR_RESET);
             printf("%s\n", test_results.failed_messages[i]);
@@ -241,9 +245,10 @@ static inline void print_test_results() {
     }
 
     printf("\ntest result: %s%s%s. %zu passed; %zu failed\n",
-           test_results.failed_tests > 0 ? RED : GREEN,
-           test_results.failed_tests > 0 ? "FAILED" : "ok", COLOR_RESET,
-           test_results.passed_tests, test_results.failed_tests);
+           test_results.failed_assertions > 0 ? RED : GREEN,
+           test_results.failed_assertions > 0 ? "FAILED" : "ok", COLOR_RESET,
+           test_results.passed_tests,
+           test_results.total_tests - test_results.passed_tests);
 }
 
 #endif
