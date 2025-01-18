@@ -42,12 +42,12 @@ typedef struct {
 /*******************************************************************************
                    ASSERTIONS: BECAUSE TRUST ISSUES ARE REAL
 *******************************************************************************/
-#define ASSERT_TRUE(condition)                                            \
-    do {                                                                  \
-        if (!(condition)) {                                               \
-            add_failed_message("Assertion failed: " #condition, __FILE__, \
-                               __LINE__);                                 \
-        }                                                                 \
+#define ASSERT_TRUE(condition)                                             \
+    do {                                                                   \
+        if (!(condition)) {                                                \
+            _add_failed_message("Assertion failed: " #condition, __FILE__, \
+                                __LINE__);                                 \
+        }                                                                  \
     } while (0)
 
 #define ASSERT_FALSE(condition) ASSERT_TRUE(!(condition))
@@ -58,7 +58,7 @@ typedef struct {
             char message[MAX_MESSAGE_LENGTH];                           \
             snprintf(message, sizeof(message), "Expected: %s, Got: %s", \
                      #expected, #actual);                               \
-            add_failed_message(message, __FILE__, __LINE__);            \
+            _add_failed_message(message, __FILE__, __LINE__);           \
         }                                                               \
     } while (0)
 
@@ -69,7 +69,7 @@ typedef struct {
             snprintf(message, sizeof(message),                              \
                      "Expected '%s' to be different from '%s' ", #expected, \
                      #actual);                                              \
-            add_failed_message(message, __FILE__, __LINE__);                \
+            _add_failed_message(message, __FILE__, __LINE__);               \
         }                                                                   \
     } while (0)
 
@@ -85,7 +85,7 @@ place.
             char message[MAX_MESSAGE_LENGTH];                                  \
             snprintf(message, sizeof(message), "Expected string: %s, Got: %s", \
                      (expected), (actual));                                    \
-            add_failed_message(message, __FILE__, __LINE__);                   \
+            _add_failed_message(message, __FILE__, __LINE__);                  \
         }                                                                      \
     } while (0)
 
@@ -96,7 +96,7 @@ place.
             snprintf(message, sizeof(message),                               \
                      "Strings are identical but should differ: (value)%s, ", \
                      (expected));                                            \
-            add_failed_message(message, __FILE__, __LINE__);                 \
+            _add_failed_message(message, __FILE__, __LINE__);                \
         }                                                                    \
     } while (0)
 
@@ -114,7 +114,7 @@ NOTE: This ain't check for type differences between `expected` and
         if (!format_spec) {                                                \
             snprintf(message, sizeof(message),                             \
                      "Unsupported type for array comparison");             \
-            add_failed_message(message, __FILE__, __LINE__);               \
+            _add_failed_message(message, __FILE__, __LINE__);              \
             break;                                                         \
         }                                                                  \
         for (size_t i = 0; i < (length); ++i) {                            \
@@ -127,7 +127,7 @@ NOTE: This ain't check for type differences between `expected` and
                 snprintf(message, sizeof(message),                         \
                          "Mismatch at index %zu: expected %s, got %s", i,  \
                          expected_str, actual_str);                        \
-                add_failed_message(message, __FILE__, __LINE__);           \
+                _add_failed_message(message, __FILE__, __LINE__);          \
                 break;                                                     \
             }                                                              \
         }                                                                  \
@@ -144,26 +144,26 @@ typedef struct {
     size_t failed_assertions;
     char **failed_messages;
     size_t failed_capacity;
-} test_result_t;
+} _test_result_t;
 
-static test_result_t test_results = {0, 0, 0, 0, NULL, 0};
-static int current_test_failed = 0;
+static _test_result_t _test_results = {0, 0, 0, 0, NULL, 0};
+static int _current_test_failed = 0;
 
-static inline void print_test_results(void);
-static inline void cleanup_tests(void);
-static inline void add_failed_message(const char *message, const char *file,
-                                      int line);
+static inline void _print_test_results(void);
+static inline void _cleanup_tests(void);
+static inline void _add_failed_message(const char *message, const char *file,
+                                       int line);
 
 static inline void tec_test_run(test_case_t test_cases[]) {
-    test_results =
-        (test_result_t){.total_tests = 0,
-                        .passed_tests = 0,
-                        .total_assertions = 0,
-                        .failed_assertions = 0,
-                        .failed_messages = (char **)malloc(sizeof(char *) * 10),
-                        .failed_capacity = 10};
+    _test_results = (_test_result_t){
+        .total_tests = 0,
+        .passed_tests = 0,
+        .total_assertions = 0,
+        .failed_assertions = 0,
+        .failed_messages = (char **)malloc(sizeof(char *) * 10),
+        .failed_capacity = 10};
 
-    if (!test_results.failed_messages) {
+    if (!_test_results.failed_messages) {
         fprintf(stderr, "Failed to allocate memory for test messages\n");
         exit(EXIT_FAILURE);
     }
@@ -176,79 +176,79 @@ static inline void tec_test_run(test_case_t test_cases[]) {
     printf("Running %zu tests\n", total);
 
     for (test_case_t *test = test_cases; test->func != NULL; ++test) {
-        test_results.total_tests++;
-        current_test_failed = 0;
+        _test_results.total_tests++;
+        _current_test_failed = 0;
 
         printf("test %s ... ", test->name);
         test->func();
 
-        if (current_test_failed) {
+        if (_current_test_failed) {
             printf("%sFAILED%s\n", RED, COLOR_RESET);
         } else {
-            test_results.passed_tests++;
+            _test_results.passed_tests++;
             printf("%sok%s\n", GREEN, COLOR_RESET);
         }
     }
 
-    print_test_results();
-    cleanup_tests();
+    _print_test_results();
+    _cleanup_tests();
 }
 
-static inline void add_failed_message(const char *message, const char *file,
-                                      int line) {
-    if (test_results.failed_assertions >= test_results.failed_capacity) {
-        size_t new_capacity = test_results.failed_capacity * 2;
-        char **new_messages = (char **)realloc(test_results.failed_messages,
+static inline void _add_failed_message(const char *message, const char *file,
+                                       int line) {
+    if (_test_results.failed_assertions >= _test_results.failed_capacity) {
+        size_t new_capacity = _test_results.failed_capacity * 2;
+        char **new_messages = (char **)realloc(_test_results.failed_messages,
                                                sizeof(char *) * new_capacity);
 
         if (!new_messages) {
             fprintf(stderr, "Failed to reallocate memory for test messages\n");
-            cleanup_tests();
+            _cleanup_tests();
             exit(EXIT_FAILURE);
         }
 
-        test_results.failed_messages = new_messages;
-        test_results.failed_capacity = new_capacity;
+        _test_results.failed_messages = new_messages;
+        _test_results.failed_capacity = new_capacity;
     }
 
     char *full_message = (char *)malloc(256);
     if (!full_message) {
         fprintf(stderr, "Failed to allocate memory for test message\n");
-        cleanup_tests();
+        _cleanup_tests();
         exit(EXIT_FAILURE);
     }
 
     snprintf(full_message, 256, "%s (File: %s, Line: %d)", message, file, line);
-    test_results.failed_messages[test_results.failed_assertions++] =
+    _test_results.failed_messages[_test_results.failed_assertions++] =
         full_message;
-    current_test_failed = 1;
+    _current_test_failed = 1;
 }
 
-static inline void cleanup_tests() {
-    if (test_results.failed_messages) {
-        for (size_t i = 0; i < test_results.failed_assertions; ++i) {
-            free(test_results.failed_messages[i]);
+static inline void _cleanup_tests() {
+    if (_test_results.failed_messages) {
+        for (size_t i = 0; i < _test_results.failed_assertions; ++i) {
+            free(_test_results.failed_messages[i]);
         }
-        free(test_results.failed_messages);
-        test_results.failed_messages = NULL;
+        free(_test_results.failed_messages);
+        _test_results.failed_messages = NULL;
     }
 }
 
-static inline void print_test_results() {
-    if (test_results.failed_assertions > 0) {
+static inline void _print_test_results() {
+    if (_test_results.failed_assertions > 0) {
         printf("\nfailures:\n\n");
-        for (size_t i = 0; i < test_results.failed_assertions; ++i) {
-            // printf("%s%s%s\n", RED, test_results.failed_messages[i],
+        for (size_t i = 0; i < _test_results.failed_assertions; ++i) {
+            // printf("%s%s%s\n", RED, _test_results.failed_messages[i],
             //        COLOR_RESET);
-            printf("%s\n", test_results.failed_messages[i]);
+            printf("%s\n", _test_results.failed_messages[i]);
         }
     }
 
     printf("\ntest result: %s%s%s. %zu passed; %zu failed\n",
-           test_results.failed_assertions > 0 ? RED : GREEN,
-           test_results.failed_assertions > 0 ? "FAILED" : "ok", COLOR_RESET,
-           test_results.passed_tests,
-           test_results.total_tests - test_results.passed_tests);
+           _test_results.failed_assertions > 0 ? RED : GREEN,
+           _test_results.failed_assertions > 0 ? "FAILED" : "ok", COLOR_RESET,
+           _test_results.passed_tests,
+           _test_results.total_tests - _test_results.passed_tests);
 }
 
 #endif
