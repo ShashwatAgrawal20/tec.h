@@ -41,6 +41,7 @@ void test_equal() {
     ASSERT_EQUAL(5, add(3, 2));
     ASSERT_NOT_EQUAL(3, add(1, 1));
     ASSERT_EQUAL(-2, add(-1, -1));
+    ASSERT_EQUAL(NULL, NULL);
 }
 
 void test_strings() {

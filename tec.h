@@ -43,6 +43,7 @@ typedef struct {
                    ASSERTIONS: BECAUSE TRUST ISSUES ARE REAL
 *******************************************************************************/
 #define ASSERT_TRUE(condition)                                             \
+    _test_results.total_assertions++;                                      \
     do {                                                                   \
         if (!(condition)) {                                                \
             _add_failed_message("Assertion failed: " #condition, __FILE__, \
@@ -53,6 +54,7 @@ typedef struct {
 #define ASSERT_FALSE(condition) ASSERT_TRUE(!(condition))
 
 #define ASSERT_EQUAL(expected, actual)                                  \
+    _test_results.total_assertions++;                                   \
     do {                                                                \
         if ((expected) != (actual)) {                                   \
             char message[MAX_MESSAGE_LENGTH];                           \
@@ -63,6 +65,7 @@ typedef struct {
     } while (0)
 
 #define ASSERT_NOT_EQUAL(expected, actual)                                  \
+    _test_results.total_assertions++;                                       \
     do {                                                                    \
         if (expected == actual) {                                           \
             char message[MAX_MESSAGE_LENGTH];                               \
@@ -75,11 +78,12 @@ typedef struct {
 
 /*
 This string comparision shit is crap btw as the buffer is pretty much
-prone to overflow... shit ig i need to come up with some clever failure message
-for string maybe not avoid those `expected` and `actual` strings in the first
-place.
+prone to overflow... shit ig i need to come up with some clever failure
+message for string maybe not avoid those `expected` and `actual` strings in
+the first place.
 */
 #define ASSERT_STR_EQUAL(expected, actual)                                     \
+    _test_results.total_assertions++;                                          \
     do {                                                                       \
         if (strcmp((expected), (actual)) != 0) {                               \
             char message[MAX_MESSAGE_LENGTH];                                  \
@@ -90,6 +94,7 @@ place.
     } while (0)
 
 #define ASSERT_STR_NOT_EQUAL(expected, actual)                               \
+    _test_results.total_assertions++;                                        \
     do {                                                                     \
         if (strcmp((expected), (actual)) == 0) {                             \
             char message[MAX_MESSAGE_LENGTH];                                \
@@ -108,6 +113,7 @@ NOTE: This ain't check for type differences between `expected` and
 `actual`.
 */
 #define ASSERT_ARRAY_EQUAL(expected, actual, length)                       \
+    _test_results.total_assertions++;                                      \
     do {                                                                   \
         char message[MAX_MESSAGE_LENGTH];                                  \
         const char *format_spec = type_to_format_specifier((expected)[0]); \
@@ -238,17 +244,20 @@ static inline void _print_test_results() {
     if (_test_results.failed_assertions > 0) {
         printf("\nfailures:\n\n");
         for (size_t i = 0; i < _test_results.failed_assertions; ++i) {
-            // printf("%s%s%s\n", RED, _test_results.failed_messages[i],
-            //        COLOR_RESET);
-            printf("%s\n", _test_results.failed_messages[i]);
+            printf("%s%s%s\n", RED, _test_results.failed_messages[i],
+                   COLOR_RESET);
+            // printf("%s\n", _test_results.failed_messages[i]);
         }
     }
 
-    printf("\ntest result: %s%s%s. %zu passed; %zu failed\n",
-           _test_results.failed_assertions > 0 ? RED : GREEN,
-           _test_results.failed_assertions > 0 ? "FAILED" : "ok", COLOR_RESET,
-           _test_results.passed_tests,
-           _test_results.total_tests - _test_results.passed_tests);
+    printf(
+        "\ntest result: %s%s%s. %zu passed; %zu failed; %zu assertions "
+        "failed out of %zu\n",
+        _test_results.failed_assertions > 0 ? RED : GREEN,
+        _test_results.failed_assertions > 0 ? "FAILED" : "ok", COLOR_RESET,
+        _test_results.passed_tests,
+        _test_results.total_tests - _test_results.passed_tests,
+        _test_results.failed_assertions, _test_results.total_assertions);
 }
 
 #endif

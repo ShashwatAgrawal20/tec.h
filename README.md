@@ -6,11 +6,63 @@ interface for writing and running unit tests with minimal setup.
 > [!IMPORTANT]
 > TEC is currently in the early stages of development, and while it is somewhat
 > functional, it may still have some limitations and is subject to change.
+> The primary focus of development is enabling support for multiple test files
+> to replace the current single-file approach.
 
 ## QUICK EXAMPLE
-The only file you need from here is
-[tec.h](https://github.com/ShashwatAgrawal20/tec.h/blob/main/tec.h). Just
-copy-paste it to your project and start using it.
+1. Just copy-paste [tec.h](https://github.com/ShashwatAgrawal20/tec.h/blob/main/tec.h)
+   to your project.
+2. Include the header in your test file.
+3. Write your tests.
+4. Create a test suite.
+5. Run your tests.
+
+Here's a Quick Example:-
+```c
+// tec.c
+#include "tec.h"
+
+// Function to test(obv irl this is thing is gonna come from the header too)
+int add(int a, int b) {
+    return a + b;
+}
+
+// Test case
+void test_addition() {
+    ASSERT_EQUAL(5, add(2, 3));
+    ASSERT_TRUE(add(2, 2) == 4);
+    ASSERT_FALSE(add(2, 2) == 5);
+}
+
+int main() {
+    test_case_t tests[] = TEST_SUITE(
+        TEST_FUNCTION(test_addition)
+    );
+    tec_test_run(tests);
+    return 0;
+}
+```
+
+## Available Assertions
+TEC provides several assertion macros for different testing needs:
+
+### Basic Assertions
+- `ASSERT_TRUE(condition)`: verifies that a condition is true.
+- `ASSERT_FALSE(condition)`: verifies that a condition is false.
+
+### Equality Assertions
+- `ASSERT_EQUAL(expected, actual)`: compares two values for equality.
+- `ASSERT_NOT_EQUAL(expected, actual)`: compares two values for inequality.
+
+### String Assertions
+- `ASSERT_STR_EQUAL(expected, actual)`: compares two strings for equality.
+- `ASSERT_STR_NOT_EQUAL(expected, actual)`: compares two strings for inequality.
+
+### Array Assertions
+- `ASSERT_ARRAY_EQUAL(expected, actual, length)`: compares two arrays for equality.
+
+## Advance Example
+
 ```c
 // tec.c
 #include "tec.h"
@@ -81,8 +133,11 @@ int main() {
     return 0;
 }
 ```
+
+## Building and Running Tests
+Compile your test file with your favorite C compiler:
 ```console
-make
+make #clang -Wall -Wextra tec.c -o tec
 ./tec
 ```
 
