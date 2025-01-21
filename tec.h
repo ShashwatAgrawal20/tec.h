@@ -118,9 +118,8 @@ NOTE: This ain't check for type differences between `expected` and
         char message[MAX_MESSAGE_LENGTH];                                  \
         const char *format_spec = type_to_format_specifier((expected)[0]); \
         if (!format_spec) {                                                \
-            snprintf(message, sizeof(message),                             \
-                     "Unsupported type for array comparison");             \
-            _add_failed_message(message, __FILE__, __LINE__);              \
+            _add_failed_message("Unsupported type for array comparison",   \
+                                __FILE__, __LINE__);                       \
             break;                                                         \
         }                                                                  \
         for (size_t i = 0; i < (length); ++i) {                            \
@@ -137,6 +136,36 @@ NOTE: This ain't check for type differences between `expected` and
                 break;                                                     \
             }                                                              \
         }                                                                  \
+    } while (0)
+
+#define ASSERT_PTR_VALUE_EQUAL(expected, actual, type)                         \
+    _test_results.total_assertions++;                                          \
+    do {                                                                       \
+        if ((expected) == NULL || (actual) == NULL) {                          \
+            _add_failed_message("Cannot compare values: NULL pointer(s)",      \
+                                __FILE__, __LINE__);                           \
+        } else {                                                               \
+            type _expected_val = *(type *)(expected);                          \
+            type _actual_val = *(type *)(actual);                              \
+            char message[MAX_MESSAGE_LENGTH];                                  \
+            const char *format_spec = type_to_format_specifier(_expected_val); \
+            if (!format_spec) {                                                \
+                _add_failed_message(                                           \
+                    "Unsupported type for pointer value comparison", __FILE__, \
+                    __LINE__);                                                 \
+            }                                                                  \
+            if (_expected_val != _actual_val) {                                \
+                char expected_str[64], actual_str[64];                         \
+                snprintf(expected_str, sizeof(expected_str), format_spec,      \
+                         _expected_val);                                       \
+                snprintf(actual_str, sizeof(actual_str), format_spec,          \
+                         _actual_val);                                         \
+                snprintf(message, sizeof(message),                             \
+                         "Value mismatch - Expected: %s, Got: %s",             \
+                         expected_str, actual_str);                            \
+                _add_failed_message(message, __FILE__, __LINE__);              \
+            }                                                                  \
+        }                                                                      \
     } while (0)
 
 /*******************************************************************************
@@ -217,14 +246,15 @@ static inline void _add_failed_message(const char *message, const char *file,
         _test_results.failed_capacity = new_capacity;
     }
 
-    char *full_message = (char *)malloc(256);
+    char *full_message = (char *)malloc(MAX_MESSAGE_LENGTH);
     if (!full_message) {
         fprintf(stderr, "Failed to allocate memory for test message\n");
         _cleanup_tests();
         exit(EXIT_FAILURE);
     }
 
-    snprintf(full_message, 256, "%s (File: %s, Line: %d)", message, file, line);
+    snprintf(full_message, MAX_MESSAGE_LENGTH, "%s (File: %s, Line: %d)",
+             message, file, line);
     _test_results.failed_messages[_test_results.failed_assertions++] =
         full_message;
     _current_test_failed = 1;

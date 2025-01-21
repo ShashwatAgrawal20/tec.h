@@ -54,13 +54,21 @@ void test_comparisions() {
     ASSERT_FALSE(add(3, 2) != 5);
 }
 
+void test_pointer() {
+    int expected = 42069;
+    int actual = 69;
+    int correct_actual = 42069;
+    ASSERT_PTR_VALUE_EQUAL(&expected, &actual, int);
+    ASSERT_PTR_VALUE_EQUAL(&expected, &correct_actual, int);
+}
+
 // TODO:- make the assert equal work with floats as the float comparision is
 // always going to be true. one can use double as of now.
 int main() {
-    test_case_t tests[] =
-        TEST_SUITE(TEST_FUNCTION(test_equal), TEST_FUNCTION(test_strings),
-                   TEST_FUNCTION(test_comparisions), TEST_FUNCTION(test_fibo),
-                   TEST_FUNCTION(test_multiple_array_types));
+    test_case_t tests[] = TEST_SUITE(
+        TEST_FUNCTION(test_equal), TEST_FUNCTION(test_strings),
+        TEST_FUNCTION(test_comparisions), TEST_FUNCTION(test_fibo),
+        TEST_FUNCTION(test_multiple_array_types), TEST_FUNCTION(test_pointer));
 
     tec_test_run(tests);
 
