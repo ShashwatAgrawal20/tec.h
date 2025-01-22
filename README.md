@@ -60,6 +60,7 @@ TEC provides several assertion macros for different testing needs:
 
 ### Array Assertions
 - `ASSERT_ARRAY_EQUAL(expected, actual, length)`: compares two arrays for equality.
+- `ASSERT_PTR_VALUE_EQUAL(expected, actual, type)`: compares values behind pointer and also takes type.
 
 ## Advance Example
 
