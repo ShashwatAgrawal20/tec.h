@@ -175,13 +175,14 @@ NOTE: This ain't check for type differences between `expected` and
 typedef struct {
     size_t total_tests;
     size_t passed_tests;
+    size_t failed_tests;
     size_t total_assertions;
     size_t failed_assertions;
     char **failed_messages;
     size_t failed_capacity;
 } _test_result_t;
 
-static _test_result_t _test_results = {0, 0, 0, 0, NULL, 0};
+static _test_result_t _test_results = {0, 0, 0, 0, 0, NULL, 0};
 static int _current_test_failed = 0;
 
 static inline void _print_test_results(void);
@@ -193,6 +194,7 @@ static inline void tec_test_run(test_case_t test_cases[]) {
     _test_results = (_test_result_t){
         .total_tests = 0,
         .passed_tests = 0,
+        .failed_tests = 0,
         .total_assertions = 0,
         .failed_assertions = 0,
         .failed_messages = (char **)malloc(sizeof(char *) * 10),
@@ -218,6 +220,7 @@ static inline void tec_test_run(test_case_t test_cases[]) {
         test->func();
 
         if (_current_test_failed) {
+            _test_results.failed_tests++;
             printf("%sFAILED%s\n", RED, COLOR_RESET);
         } else {
             _test_results.passed_tests++;
@@ -231,7 +234,12 @@ static inline void tec_test_run(test_case_t test_cases[]) {
 
 static inline void _add_failed_message(const char *message, const char *file,
                                        int line) {
-    if (_test_results.failed_assertions >= _test_results.failed_capacity) {
+    _test_results.failed_assertions++;
+    if (_current_test_failed == 1) {
+        return;
+    }
+
+    if (_test_results.failed_tests >= _test_results.failed_capacity) {
         size_t new_capacity = _test_results.failed_capacity * 2;
         char **new_messages = (char **)realloc(_test_results.failed_messages,
                                                sizeof(char *) * new_capacity);
@@ -255,14 +263,13 @@ static inline void _add_failed_message(const char *message, const char *file,
 
     snprintf(full_message, MAX_MESSAGE_LENGTH, "%s (File: %s, Line: %d)",
              message, file, line);
-    _test_results.failed_messages[_test_results.failed_assertions++] =
-        full_message;
+    _test_results.failed_messages[_test_results.failed_tests] = full_message;
     _current_test_failed = 1;
 }
 
 static inline void _cleanup_tests() {
     if (_test_results.failed_messages) {
-        for (size_t i = 0; i < _test_results.failed_assertions; ++i) {
+        for (size_t i = 0; i < _test_results.failed_tests; ++i) {
             free(_test_results.failed_messages[i]);
         }
         free(_test_results.failed_messages);
@@ -271,9 +278,9 @@ static inline void _cleanup_tests() {
 }
 
 static inline void _print_test_results() {
-    if (_test_results.failed_assertions > 0) {
+    if (_test_results.failed_tests > 0) {
         printf("\nfailures:\n\n");
-        for (size_t i = 0; i < _test_results.failed_assertions; ++i) {
+        for (size_t i = 0; i < _test_results.failed_tests; ++i) {
             printf("%s%s%s\n", RED, _test_results.failed_messages[i],
                    COLOR_RESET);
             // printf("%s\n", _test_results.failed_messages[i]);
