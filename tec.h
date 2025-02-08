@@ -15,6 +15,33 @@ typedef struct {
 #define COLOR_RESET "\x1b[0m"
 #define MAX_MESSAGE_LENGTH 256
 
+#define REGISTER_TEST(name)                                          \
+    static void name(void);                                          \
+    static __attribute__((constructor)) void register_##name(void) { \
+        register_test(name, #name);                                  \
+    }                                                                \
+    static void name(void)
+
+// Macro to run all tests
+#define RUN_TESTS() run_tests()
+
+static test_case_t *test_registry = NULL;
+static size_t test_count = 0;
+static size_t test_capacity = 0;
+
+static inline void register_test(void (*func)(void), const char *name) {
+    if (test_count == test_capacity) {
+        test_capacity = (test_capacity == 0) ? 8 : test_capacity * 2;
+        test_registry = (test_case_t *)realloc(
+            test_registry, test_capacity * sizeof(test_case_t));
+        if (!test_registry) {
+            fprintf(stderr, "Failed to allocate memory for test registry\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+    test_registry[test_count++] = (test_case_t){func, name};
+}
+
 #define type_to_format_specifier(T) \
     _Generic((T),                   \
         int: "%d",                  \
@@ -190,7 +217,7 @@ static inline void _cleanup_tests(void);
 static inline void _add_failed_message(const char *message, const char *file,
                                        int line);
 
-static inline void tec_test_run(test_case_t test_cases[]) {
+static inline void run_tests() {
     _test_results = (_test_result_t){
         .total_tests = 0,
         .passed_tests = 0,
@@ -205,19 +232,14 @@ static inline void tec_test_run(test_case_t test_cases[]) {
         exit(EXIT_FAILURE);
     }
 
-    size_t total = 0;
-    for (test_case_t *test = test_cases; test->func != NULL; ++test) {
-        ++total;
-    }
+    printf("Running %zu tests\n", test_count);
 
-    printf("Running %zu tests\n", total);
-
-    for (test_case_t *test = test_cases; test->func != NULL; ++test) {
+    for (size_t i = 0; i < test_count; ++i) {
         _test_results.total_tests++;
         _current_test_failed = 0;
 
-        printf("test %s ... ", test->name);
-        test->func();
+        printf("test %s ... ", test_registry[i].name);
+        test_registry[i].func();
 
         if (_current_test_failed) {
             _test_results.failed_tests++;
@@ -230,6 +252,9 @@ static inline void tec_test_run(test_case_t test_cases[]) {
 
     _print_test_results();
     _cleanup_tests();
+    if (test_registry) {
+        free(test_registry);
+    }
 }
 
 static inline void _add_failed_message(const char *message, const char *file,

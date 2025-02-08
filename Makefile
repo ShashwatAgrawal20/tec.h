@@ -3,7 +3,7 @@ CC = clang
 CFLAGS = -Wall -Wextra
 
 TARGET = tec
-SOURCES = ./tec.c
+SOURCES = ./tec.c ./ex_test_utility_fn/math_utils.c
 
 all: $(TARGET)
 
