@@ -1,325 +1,248 @@
 #ifndef TEC_H
 #define TEC_H
 
+#include <setjmp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#define TEC_RED "\033[31m"
+#define TEC_GREEN "\033[32m"
+#define TEC_YELLOW "\033[33m"
+#define TEC_BLUE "\033[34m"
+#define TEC_MAGENTA "\033[35m"
+#define TEC_CYAN "\033[36m"
+#define TEC_RESET "\033[0m"
+
+typedef void (*tec_func_t)(void);
+
 typedef struct {
-    void (*func)(void);
-    const char *name;
-} test_case_t;
+    const char* name;
+    const char* file;
+    tec_func_t func;
+} tec_entry_t;
 
-#define RED "\x1b[31m"
-#define GREEN "\x1b[32m"
-#define COLOR_RESET "\x1b[0m"
-#define MAX_MESSAGE_LENGTH 256
+#define TEC_MAX_TESTS 1024
+#define TEC_MAX_FAILURE_MESSAGE_LEN 512
+static char tec_failure_message[TEC_MAX_FAILURE_MESSAGE_LEN];
+static tec_entry_t tec_registry[TEC_MAX_TESTS];
+static int tec_count = 0;
+static int tec_current_passed = 0;
+static int tec_current_failed = 0;
+static jmp_buf tec_jump_buffer;
+static int tec_jump_set = 0;
 
-#define REGISTER_TEST(name)                                          \
-    static void name(void);                                          \
-    static __attribute__((constructor)) void register_##name(void) { \
-        register_test(name, #name);                                  \
-    }                                                                \
-    static void name(void)
+typedef struct {
+    int total_tests;
+    int passed_tests;
+    int failed_tests;
+    int total_assertions;
+    int passed_assertions;
+    int failed_assertions;
+} tec_stats_t;
 
-// Macro to run all tests
-#define RUN_TESTS() run_tests()
+static tec_stats_t tec_stats = {0};
 
-static test_case_t *test_registry = NULL;
-static size_t test_count = 0;
-static size_t test_capacity = 0;
-
-static inline void register_test(void (*func)(void), const char *name) {
-    if (test_count == test_capacity) {
-        test_capacity = (test_capacity == 0) ? 8 : test_capacity * 2;
-        test_registry = (test_case_t *)realloc(
-            test_registry, test_capacity * sizeof(test_case_t));
-        if (!test_registry) {
-            fprintf(stderr, "Failed to allocate memory for test registry\n");
-            exit(EXIT_FAILURE);
-        }
+static void tec_register(const char* name, const char* file, tec_func_t func) {
+    if (tec_count < TEC_MAX_TESTS) {
+        tec_registry[tec_count].name = name;
+        tec_registry[tec_count].file = file;
+        tec_registry[tec_count].func = func;
+        tec_count++;
     }
-    test_registry[test_count++] = (test_case_t){func, name};
 }
 
-#define type_to_format_specifier(T) \
-    _Generic((T),                   \
-        int: "%d",                  \
-        float: "%f",                \
-        double: "%lf",              \
-        unsigned long: "%zu",       \
-        unsigned int: "%u",         \
-        unsigned short: "%hu",      \
-        unsigned char: "%hhu",      \
-        signed long: "%ld",         \
-        signed short: "%hd",        \
-        signed char: "%hhd",        \
-        default: NULL)
-/*******************************************************************************
-               TEST INIT AND DECLARATION: WHERE LEGENDS ARE MADE
-*******************************************************************************/
-#define STRINGIFY(x) #x
-#define TEST_FUNCTION(fn) {fn, STRINGIFY(fn)}
+#define TEC_ASSERT(condition)                                          \
+    do {                                                               \
+        tec_stats.total_assertions++;                                  \
+        if (!(condition)) {                                            \
+            snprintf(tec_failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
+                     "    " TEC_RED "✗" TEC_RESET                      \
+                     " Assertion failed: %s (line %d)\n",              \
+                     #condition, __LINE__);                            \
+            tec_current_failed++;                                      \
+            tec_stats.failed_assertions++;                             \
+            if (tec_jump_set) longjmp(tec_jump_buffer, 1);             \
+        } else {                                                       \
+            tec_current_passed++;                                      \
+            tec_stats.passed_assertions++;                             \
+        }                                                              \
+    } while (0)
 
-#define TEST_SUITE(...)             \
-    (test_case_t[]) {               \
-        __VA_ARGS__, { NULL, NULL } \
+#define TEC_ASSERT_EQ(a, b)                                            \
+    do {                                                               \
+        tec_stats.total_assertions++;                                  \
+        if ((a) != (b)) {                                              \
+            snprintf(tec_failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
+                     "    " TEC_RED "✗" TEC_RESET                      \
+                     " Expected %s == %s, got %ld != %ld (line %d)\n", \
+                     #a, #b, (long)(a), (long)(b), __LINE__);          \
+            tec_current_failed++;                                      \
+            tec_stats.failed_assertions++;                             \
+            if (tec_jump_set) longjmp(tec_jump_buffer, 1);             \
+        } else {                                                       \
+            tec_current_passed++;                                      \
+            tec_stats.passed_assertions++;                             \
+        }                                                              \
+    } while (0)
+
+#define TEC_ASSERT_NE(a, b)                                              \
+    do {                                                                 \
+        tec_stats.total_assertions++;                                    \
+        if ((a) == (b)) {                                                \
+            snprintf(tec_failure_message, TEC_MAX_FAILURE_MESSAGE_LEN,   \
+                     "    " TEC_RED "✗" TEC_RESET                        \
+                     " Expected %s != %s, but both are %ld (line %d)\n", \
+                     #a, #b, (long)(a), __LINE__);                       \
+            tec_current_failed++;                                        \
+            tec_stats.failed_assertions++;                               \
+            if (tec_jump_set) longjmp(tec_jump_buffer, 1);               \
+        } else {                                                         \
+            tec_current_passed++;                                        \
+            tec_stats.passed_assertions++;                               \
+        }                                                                \
+    } while (0)
+
+#define TEC_ASSERT_STR_EQ(a, b)                                               \
+    do {                                                                      \
+        tec_stats.total_assertions++;                                         \
+        if (strcmp((a), (b)) != 0) {                                          \
+            snprintf(tec_failure_message, TEC_MAX_FAILURE_MESSAGE_LEN,        \
+                     "    " TEC_RED "✗" TEC_RESET                             \
+                     " Expected strings equal: \"%s\" != \"%s\" (line %d)\n", \
+                     (a), (b), __LINE__);                                     \
+            tec_current_failed++;                                             \
+            tec_stats.failed_assertions++;                                    \
+            if (tec_jump_set) longjmp(tec_jump_buffer, 1);                    \
+        } else {                                                              \
+            tec_current_passed++;                                             \
+            tec_stats.passed_assertions++;                                    \
+        }                                                                     \
+    } while (0)
+
+#define TEC_ASSERT_NULL(ptr)                                           \
+    do {                                                               \
+        tec_stats.total_assertions++;                                  \
+        if ((ptr) != NULL) {                                           \
+            snprintf(tec_failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
+                     "    " TEC_RED "✗" TEC_RESET                      \
+                     " Expected %s to be NULL, got %p (line %d)\n",    \
+                     #ptr, (void*)(ptr), __LINE__);                    \
+            tec_current_failed++;                                      \
+            tec_stats.failed_assertions++;                             \
+            if (tec_jump_set) longjmp(tec_jump_buffer, 1);             \
+        } else {                                                       \
+            tec_current_passed++;                                      \
+            tec_stats.passed_assertions++;                             \
+        }                                                              \
+    } while (0)
+
+#define TEC_ASSERT_NOT_NULL(ptr)                                       \
+    do {                                                               \
+        tec_stats.total_assertions++;                                  \
+        if ((ptr) == NULL) {                                           \
+            snprintf(tec_failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
+                     "    " TEC_RED "✗" TEC_RESET                      \
+                     " Expected %s to not be NULL (line %d)\n",        \
+                     #ptr, __LINE__);                                  \
+            tec_current_failed++;                                      \
+            tec_stats.failed_assertions++;                             \
+            if (tec_jump_set) longjmp(tec_jump_buffer, 1);             \
+        } else {                                                       \
+            tec_current_passed++;                                      \
+            tec_stats.passed_assertions++;                             \
+        }                                                              \
+    } while (0)
+
+#define TEC(test_name)                                                        \
+    static void tec_##test_name(void);                                        \
+    static void __attribute__((constructor)) tec_register_##test_name(void) { \
+        tec_register(#test_name, __FILE__, tec_##test_name);                  \
+    }                                                                         \
+    static void tec_##test_name(void)
+
+static void tec_print_test_result(const char* test_name, const char* file,
+                                  int failed) {
+    const char* filename = strrchr(file, '/');
+    if (filename)
+        filename++;
+    else
+        filename = file;
+
+    if (failed == 0) {
+        printf("  " TEC_GREEN "✓" TEC_RESET " %s " TEC_CYAN "(%s)" TEC_RESET
+               "\n",
+               test_name, filename);
+    } else {
+        fprintf(stderr,
+                "  " TEC_RED "✗" TEC_RESET " %s " TEC_CYAN "(%s)" TEC_RESET
+                " - %d assertion(s) failed\n",
+                test_name, filename, failed);
+        fprintf(stderr, "%s", tec_failure_message);
     }
+}
 
-/*******************************************************************************
-                   ASSERTIONS: BECAUSE TRUST ISSUES ARE REAL
-*******************************************************************************/
-#define ASSERT_TRUE(condition)                                             \
-    _test_results.total_assertions++;                                      \
-    do {                                                                   \
-        if (!(condition)) {                                                \
-            _add_failed_message("Assertion failed: " #condition, __FILE__, \
-                                __LINE__);                                 \
-        }                                                                  \
-    } while (0)
+static int tec_run_all(void) {
+    printf(TEC_BLUE "================================\n");
+    printf("         C Test Runner          \n");
+    printf("================================" TEC_RESET "\n\n");
 
-#define ASSERT_FALSE(condition) ASSERT_TRUE(!(condition))
+    const char* current_file = NULL;
 
-#define ASSERT_EQUAL(expected, actual)                                  \
-    _test_results.total_assertions++;                                   \
-    do {                                                                \
-        if ((expected) != (actual)) {                                   \
-            char message[MAX_MESSAGE_LENGTH];                           \
-            snprintf(message, sizeof(message), "Expected: %s, Got: %s", \
-                     #expected, #actual);                               \
-            _add_failed_message(message, __FILE__, __LINE__);           \
-        }                                                               \
-    } while (0)
+    for (int i = 0; i < tec_count; i++) {
+        if (current_file == NULL ||
+            strcmp(current_file, tec_registry[i].file) != 0) {
+            current_file = tec_registry[i].file;
+            const char* filename = strrchr(current_file, '/');
+            if (filename)
+                filename++;
+            else
+                filename = current_file;
 
-#define ASSERT_NOT_EQUAL(expected, actual)                                  \
-    _test_results.total_assertions++;                                       \
-    do {                                                                    \
-        if (expected == actual) {                                           \
-            char message[MAX_MESSAGE_LENGTH];                               \
-            snprintf(message, sizeof(message),                              \
-                     "Expected '%s' to be different from '%s' ", #expected, \
-                     #actual);                                              \
-            _add_failed_message(message, __FILE__, __LINE__);               \
-        }                                                                   \
-    } while (0)
+            if (i > 0) printf("\n");
+            printf(TEC_MAGENTA "%s" TEC_RESET "\n", filename);
+        }
 
-/*
-This string comparision shit is crap btw as the buffer is pretty much
-prone to overflow... shit ig i need to come up with some clever failure
-message for string maybe not avoid those `expected` and `actual` strings in
-the first place.
-*/
-#define ASSERT_STR_EQUAL(expected, actual)                                     \
-    _test_results.total_assertions++;                                          \
-    do {                                                                       \
-        if (strcmp((expected), (actual)) != 0) {                               \
-            char message[MAX_MESSAGE_LENGTH];                                  \
-            snprintf(message, sizeof(message), "Expected string: %s, Got: %s", \
-                     (expected), (actual));                                    \
-            _add_failed_message(message, __FILE__, __LINE__);                  \
-        }                                                                      \
-    } while (0)
+        tec_current_passed = 0;
+        tec_current_failed = 0;
 
-#define ASSERT_STR_NOT_EQUAL(expected, actual)                               \
-    _test_results.total_assertions++;                                        \
-    do {                                                                     \
-        if (strcmp((expected), (actual)) == 0) {                             \
-            char message[MAX_MESSAGE_LENGTH];                                \
-            snprintf(message, sizeof(message),                               \
-                     "Strings are identical but should differ: (value)%s, ", \
-                     (expected));                                            \
-            _add_failed_message(message, __FILE__, __LINE__);                \
-        }                                                                    \
-    } while (0)
+        tec_jump_set = 1;
+        if (setjmp(tec_jump_buffer) == 0) {
+            tec_registry[i].func();
+        }
+        tec_jump_set = 0;
 
-/*
-PS: ok so the thing is that I got it somewhat working by using some extra
-buffers and stuff, but still it heavily depends on the `_Generic` from C11
+        tec_print_test_result(tec_registry[i].name, tec_registry[i].file,
+                              tec_current_failed);
 
-NOTE: This ain't check for type differences between `expected` and
-`actual`.
-*/
-#define ASSERT_ARRAY_EQUAL(expected, actual, length)                       \
-    _test_results.total_assertions++;                                      \
-    do {                                                                   \
-        char message[MAX_MESSAGE_LENGTH];                                  \
-        const char *format_spec = type_to_format_specifier((expected)[0]); \
-        if (!format_spec) {                                                \
-            _add_failed_message("Unsupported type for array comparison",   \
-                                __FILE__, __LINE__);                       \
-            break;                                                         \
-        }                                                                  \
-        for (size_t i = 0; i < (length); ++i) {                            \
-            if ((expected)[i] != (actual)[i]) {                            \
-                char expected_str[64], actual_str[64];                     \
-                snprintf(expected_str, sizeof(expected_str), format_spec,  \
-                         (expected)[i]);                                   \
-                snprintf(actual_str, sizeof(actual_str), format_spec,      \
-                         (actual)[i]);                                     \
-                snprintf(message, sizeof(message),                         \
-                         "Mismatch at index %zu: expected %s, got %s", i,  \
-                         expected_str, actual_str);                        \
-                _add_failed_message(message, __FILE__, __LINE__);          \
-                break;                                                     \
-            }                                                              \
-        }                                                                  \
-    } while (0)
-
-#define ASSERT_PTR_VALUE_EQUAL(expected, actual, type)                         \
-    _test_results.total_assertions++;                                          \
-    do {                                                                       \
-        if ((expected) == NULL || (actual) == NULL) {                          \
-            _add_failed_message("Cannot compare values: NULL pointer(s)",      \
-                                __FILE__, __LINE__);                           \
-        } else {                                                               \
-            type _expected_val = *(type *)(expected);                          \
-            type _actual_val = *(type *)(actual);                              \
-            char message[MAX_MESSAGE_LENGTH];                                  \
-            const char *format_spec = type_to_format_specifier(_expected_val); \
-            if (!format_spec) {                                                \
-                _add_failed_message(                                           \
-                    "Unsupported type for pointer value comparison", __FILE__, \
-                    __LINE__);                                                 \
-            }                                                                  \
-            if (_expected_val != _actual_val) {                                \
-                char expected_str[64], actual_str[64];                         \
-                snprintf(expected_str, sizeof(expected_str), format_spec,      \
-                         _expected_val);                                       \
-                snprintf(actual_str, sizeof(actual_str), format_spec,          \
-                         _actual_val);                                         \
-                snprintf(message, sizeof(message),                             \
-                         "Value mismatch - Expected: %s, Got: %s",             \
-                         expected_str, actual_str);                            \
-                _add_failed_message(message, __FILE__, __LINE__);              \
-            }                                                                  \
-        }                                                                      \
-    } while (0)
-
-/*******************************************************************************
-                         TEST RUNNER: WE DON'T JUDGE 😁
-*******************************************************************************/
-
-typedef struct {
-    size_t total_tests;
-    size_t passed_tests;
-    size_t failed_tests;
-    size_t total_assertions;
-    size_t failed_assertions;
-    char **failed_messages;
-    size_t failed_capacity;
-} _test_result_t;
-
-static _test_result_t _test_results = {0, 0, 0, 0, 0, NULL, 0};
-static int _current_test_failed = 0;
-
-static inline void _print_test_results(void);
-static inline void _cleanup_tests(void);
-static inline void _add_failed_message(const char *message, const char *file,
-                                       int line);
-
-static inline void run_tests() {
-    _test_results = (_test_result_t){
-        .total_tests = 0,
-        .passed_tests = 0,
-        .failed_tests = 0,
-        .total_assertions = 0,
-        .failed_assertions = 0,
-        .failed_messages = (char **)malloc(sizeof(char *) * 10),
-        .failed_capacity = 10};
-
-    if (!_test_results.failed_messages) {
-        fprintf(stderr, "Failed to allocate memory for test messages\n");
-        exit(EXIT_FAILURE);
-    }
-
-    printf("Running %zu tests\n", test_count);
-
-    for (size_t i = 0; i < test_count; ++i) {
-        _test_results.total_tests++;
-        _current_test_failed = 0;
-
-        printf("test %s ... ", test_registry[i].name);
-        test_registry[i].func();
-
-        if (_current_test_failed) {
-            _test_results.failed_tests++;
-            printf("%sFAILED%s\n", RED, COLOR_RESET);
+        tec_stats.total_tests++;
+        if (tec_current_failed == 0) {
+            tec_stats.passed_tests++;
         } else {
-            _test_results.passed_tests++;
-            printf("%sok%s\n", GREEN, COLOR_RESET);
+            tec_stats.failed_tests++;
         }
     }
 
-    _print_test_results();
-    _cleanup_tests();
-    if (test_registry) {
-        free(test_registry);
+    printf("\n" TEC_BLUE "================================" TEC_RESET "\n");
+    printf("Tests: %d total, " TEC_GREEN "%d passed" TEC_RESET ", " TEC_RED
+           "%d failed" TEC_RESET "\n",
+           tec_stats.total_tests, tec_stats.passed_tests,
+           tec_stats.failed_tests);
+    printf("Assertions: %d total, " TEC_GREEN "%d passed" TEC_RESET ", " TEC_RED
+           "%d failed" TEC_RESET "\n",
+           tec_stats.total_assertions, tec_stats.passed_assertions,
+           tec_stats.failed_assertions);
+
+    if (tec_stats.failed_tests == 0) {
+        printf("\n" TEC_GREEN "All tests passed!" TEC_RESET "\n");
+        return 0;
+    } else {
+        printf("\n" TEC_RED "Some tests failed!" TEC_RESET "\n");
+        return 1;
     }
 }
 
-static inline void _add_failed_message(const char *message, const char *file,
-                                       int line) {
-    _test_results.failed_assertions++;
-    if (_current_test_failed == 1) {
-        return;
-    }
+#define TEC_MAIN() \
+    int main(void) { return tec_run_all(); }
 
-    if (_test_results.failed_tests >= _test_results.failed_capacity) {
-        size_t new_capacity = _test_results.failed_capacity * 2;
-        char **new_messages = (char **)realloc(_test_results.failed_messages,
-                                               sizeof(char *) * new_capacity);
-
-        if (!new_messages) {
-            fprintf(stderr, "Failed to reallocate memory for test messages\n");
-            _cleanup_tests();
-            exit(EXIT_FAILURE);
-        }
-
-        _test_results.failed_messages = new_messages;
-        _test_results.failed_capacity = new_capacity;
-    }
-
-    char *full_message = (char *)malloc(MAX_MESSAGE_LENGTH);
-    if (!full_message) {
-        fprintf(stderr, "Failed to allocate memory for test message\n");
-        _cleanup_tests();
-        exit(EXIT_FAILURE);
-    }
-
-    snprintf(full_message, MAX_MESSAGE_LENGTH, "%s (File: %s, Line: %d)",
-             message, file, line);
-    _test_results.failed_messages[_test_results.failed_tests] = full_message;
-    _current_test_failed = 1;
-}
-
-static inline void _cleanup_tests() {
-    if (_test_results.failed_messages) {
-        for (size_t i = 0; i < _test_results.failed_tests; ++i) {
-            free(_test_results.failed_messages[i]);
-        }
-        free(_test_results.failed_messages);
-        _test_results.failed_messages = NULL;
-    }
-}
-
-static inline void _print_test_results() {
-    if (_test_results.failed_tests > 0) {
-        printf("\nfailures:\n\n");
-        for (size_t i = 0; i < _test_results.failed_tests; ++i) {
-            printf("%s%s%s\n", RED, _test_results.failed_messages[i],
-                   COLOR_RESET);
-            // printf("%s\n", _test_results.failed_messages[i]);
-        }
-    }
-
-    printf(
-        "\ntest result: %s%s%s. %zu passed; %zu failed; %zu assertions "
-        "failed out of %zu\n",
-        _test_results.failed_assertions > 0 ? RED : GREEN,
-        _test_results.failed_assertions > 0 ? "FAILED" : "ok", COLOR_RESET,
-        _test_results.passed_tests,
-        _test_results.total_tests - _test_results.passed_tests,
-        _test_results.failed_assertions, _test_results.total_assertions);
-}
-
-#endif
+#endif  // TEC_H
