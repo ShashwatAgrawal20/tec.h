@@ -22,8 +22,23 @@ typedef struct {
     tec_func_t func;
 } tec_entry_t;
 
+#define type_to_format_specifier(T) \
+    _Generic((T),                   \
+        int: "%d",                  \
+        float: "%f",                \
+        double: "%lf",              \
+        unsigned long: "%zu",       \
+        unsigned int: "%u",         \
+        unsigned short: "%hu",      \
+        unsigned char: "%hhu",      \
+        signed long: "%ld",         \
+        signed short: "%hd",        \
+        signed char: "%hhd",        \
+        default: "%p")
+
 #define TEC_MAX_TESTS 1024
 #define TEC_MAX_FAILURE_MESSAGE_LEN 512
+#define TEC_TMP_STRBUF_LEN 32
 static char tec_failure_message[TEC_MAX_FAILURE_MESSAGE_LEN];
 static tec_entry_t tec_registry[TEC_MAX_TESTS];
 static int tec_count = 0;
@@ -44,6 +59,11 @@ typedef struct {
 static tec_stats_t tec_stats = {0};
 
 static void tec_register(const char* name, const char* file, tec_func_t func) {
+    if (!name || !file || !func) {
+        fprintf(stderr,
+                TEC_RED "Error: NULL argument to tec_register\n" TEC_RESET);
+        return;
+    }
     if (tec_count < TEC_MAX_TESTS) {
         tec_registry[tec_count].name = name;
         tec_registry[tec_count].file = file;
@@ -69,21 +89,25 @@ static void tec_register(const char* name, const char* file, tec_func_t func) {
         }                                                              \
     } while (0)
 
-#define TEC_ASSERT_EQ(a, b)                                            \
-    do {                                                               \
-        tec_stats.total_assertions++;                                  \
-        if ((a) != (b)) {                                              \
-            snprintf(tec_failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
-                     "    " TEC_RED "✗" TEC_RESET                      \
-                     " Expected %s == %s, got %ld != %ld (line %d)\n", \
-                     #a, #b, (long)(a), (long)(b), __LINE__);          \
-            tec_current_failed++;                                      \
-            tec_stats.failed_assertions++;                             \
-            if (tec_jump_set) longjmp(tec_jump_buffer, 1);             \
-        } else {                                                       \
-            tec_current_passed++;                                      \
-            tec_stats.passed_assertions++;                             \
-        }                                                              \
+#define TEC_ASSERT_EQ(a, b)                                                 \
+    do {                                                                    \
+        tec_stats.total_assertions++;                                       \
+        if ((a) != (b)) {                                                   \
+            char a_str[TEC_TMP_STRBUF_LEN];                                 \
+            char b_str[TEC_TMP_STRBUF_LEN];                                 \
+            snprintf(a_str, sizeof(a_str), type_to_format_specifier(a), a); \
+            snprintf(b_str, sizeof(b_str), type_to_format_specifier(b), b); \
+            snprintf(tec_failure_message, TEC_MAX_FAILURE_MESSAGE_LEN,      \
+                     "    " TEC_RED "✗" TEC_RESET                           \
+                     " Expected %s == %s, got %s != %s (line %d)\n",        \
+                     #a, #b, a_str, b_str, __LINE__);                       \
+            tec_current_failed++;                                           \
+            tec_stats.failed_assertions++;                                  \
+            if (tec_jump_set) longjmp(tec_jump_buffer, 1);                  \
+        } else {                                                            \
+            tec_current_passed++;                                           \
+            tec_stats.passed_assertions++;                                  \
+        }                                                                   \
     } while (0)
 
 #define TEC_ASSERT_NE(a, b)                                              \
@@ -103,14 +127,21 @@ static void tec_register(const char* name, const char* file, tec_func_t func) {
         }                                                                \
     } while (0)
 
+/*
+ * NOTE: If both strings are NULL, should this count as equal or not?
+ * Current behavior treats it as a failure not sure if that's a feature or a
+ * bug.
+ */
 #define TEC_ASSERT_STR_EQ(a, b)                                               \
     do {                                                                      \
         tec_stats.total_assertions++;                                         \
-        if (strcmp((a), (b)) != 0) {                                          \
+        const char* _a = (a);                                                 \
+        const char* _b = (b);                                                 \
+        if (!_a || !_b || strcmp((_a), (_b)) != 0) {                          \
             snprintf(tec_failure_message, TEC_MAX_FAILURE_MESSAGE_LEN,        \
                      "    " TEC_RED "✗" TEC_RESET                             \
                      " Expected strings equal: \"%s\" != \"%s\" (line %d)\n", \
-                     (a), (b), __LINE__);                                     \
+                     (_a), (_b), __LINE__);                                   \
             tec_current_failed++;                                             \
             tec_stats.failed_assertions++;                                    \
             if (tec_jump_set) longjmp(tec_jump_buffer, 1);                    \
@@ -161,23 +192,15 @@ static void tec_register(const char* name, const char* file, tec_func_t func) {
     }                                                                         \
     static void tec_##test_name(void)
 
-static void tec_print_test_result(const char* test_name, const char* file,
-                                  int failed) {
-    const char* filename = strrchr(file, '/');
-    if (filename)
-        filename++;
-    else
-        filename = file;
-
+static void tec_print_test_result(const char* test_name, int failed) {
     if (failed == 0) {
-        printf("  " TEC_GREEN "✓" TEC_RESET " %s " TEC_CYAN "(%s)" TEC_RESET
-               "\n",
-               test_name, filename);
+        printf("  " TEC_GREEN "✓" TEC_RESET " %s \n", test_name);
     } else {
         fprintf(stderr,
-                "  " TEC_RED "✗" TEC_RESET " %s " TEC_CYAN "(%s)" TEC_RESET
+                "  " TEC_RED "✗" TEC_RESET
+                " %s "
                 " - %d assertion(s) failed\n",
-                test_name, filename, failed);
+                test_name, failed);
         fprintf(stderr, "%s", tec_failure_message);
     }
 }
@@ -189,11 +212,12 @@ static int tec_run_all(void) {
 
     const char* current_file = NULL;
 
-    for (int i = 0; i < tec_count; i++) {
+    for (int i = 0; i < tec_count; ++i) {
+        const char* filename;
         if (current_file == NULL ||
             strcmp(current_file, tec_registry[i].file) != 0) {
             current_file = tec_registry[i].file;
-            const char* filename = strrchr(current_file, '/');
+            filename = strrchr(current_file, '/');
             if (filename)
                 filename++;
             else
@@ -212,8 +236,7 @@ static int tec_run_all(void) {
         }
         tec_jump_set = 0;
 
-        tec_print_test_result(tec_registry[i].name, tec_registry[i].file,
-                              tec_current_failed);
+        tec_print_test_result(tec_registry[i].name, tec_current_failed);
 
         tec_stats.total_tests++;
         if (tec_current_failed == 0) {
