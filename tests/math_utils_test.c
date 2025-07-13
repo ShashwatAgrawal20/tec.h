@@ -4,7 +4,7 @@
 
 TEC(test_add_positive_numbers) {
     int result = add(2, 3);
-    TEC_ASSERT_EQ(result++, 5);
+    TEC_ASSERT_EQ(result, 5);
     TEC_ASSERT(result > 0);
     TEC_ASSERT_NE(result, 0);
 
@@ -18,7 +18,7 @@ TEC(test_add_negative_numbers) {
     int result = add(-5, -3);
     TEC_ASSERT_EQ(result, -8);
     TEC_ASSERT(result < 0);
-    TEC_ASSERT_NE(result, 0);
+    TEC_ASSERT_NE(result++, 0);
 
     result = add(-10, 5);
     TEC_ASSERT_EQ(result, -5);
