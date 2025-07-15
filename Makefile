@@ -9,7 +9,9 @@ SOURCES = $(wildcard $(SRCDIR)/*.c)
 OBJECTS = $(SOURCES:$(SRCDIR)/%.c=$(BUILDDIR)/%.o)
 
 TESTDIR = tests
-TEST_RUNNER = $(TESTDIR)/test_runner
+TEST_SRC := $(shell find $(TESTDIR) -name '*_test.c')
+TEST_RUNNER_SRC = $(TESTDIR)/test_runner.c
+TEST_RUNNER_BIN = $(TESTDIR)/test_runner
 TEST_OBJECTS = $(filter-out $(BUILDDIR)/main.o, $(OBJECTS))
 
 TARGET = main
@@ -21,18 +23,28 @@ all: $(TARGET)
 $(TARGET): $(OBJECTS)
 	$(CC) $(CFLAGS) -o $@ $^
 
-$(TEST_RUNNER): $(TEST_OBJECTS)
-	$(CC) $(CFLAGS) $(INCLUDES) -o $@ $(TESTDIR)/test_runner.c $^
+$(TEST_RUNNER_SRC): $(TEST_SRC)
+	@echo 'Generating test runner...'
+	@echo '#include "../tec.h"' > $@
+	@for file in $(TEST_SRC); do \
+		basename=$$(basename $$file); \
+		echo "#include \"$$basename\"" >> $@; \
+	done
+	@echo 'TEC_MAIN()' >> $@
+
+$(TEST_RUNNER_BIN): $(TEST_RUNNER_SRC) $(TEST_OBJECTS)
+	$(CC) $(CFLAGS) $(INCLUDES) -o $@ $< $(TEST_OBJECTS)
 
 $(BUILDDIR)/%.o: $(SRCDIR)/%.c
 	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
-test: $(TEST_RUNNER)
-	./$(TEST_RUNNER)
+test: $(TEST_RUNNER_BIN)
+	./$(TEST_RUNNER_BIN)
+	@rm -f $(TEST_RUNNER_BIN)
 
 clean:
-	rm -rf $(BUILDDIR) $(TARGET) $(TEST_RUNNER)
+	rm -rf $(BUILDDIR) $(TARGET) $(TEST_RUNNER_BIN) $(TEST_RUNNER_SRC)
 
 help:
 	@echo "Available targets:"
