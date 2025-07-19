@@ -22,19 +22,44 @@ typedef struct {
     tec_func_t func;
 } tec_entry_t;
 
-#define type_to_format_specifier(T) \
-    _Generic((T),                   \
-        int: "%d",                  \
-        float: "%f",                \
-        double: "%lf",              \
-        unsigned long: "%zu",       \
-        unsigned int: "%u",         \
-        unsigned short: "%hu",      \
-        unsigned char: "%hhu",      \
-        signed long: "%ld",         \
-        signed short: "%hd",        \
-        signed char: "%hhd",        \
+/*
+ * keep TEC_FORMAT_SPEC and TEC_FORMAT_VALUE split to avoid -Wformat issues
+ * I tried snprintf-style macro but, it caused bogus format warnings on the LSP
+ * side, splitting format and value avoids LSP noise and keeps type safety.
+ * default case now uses (const void *)&x to bypass int-to-pointer-size
+ * warnings.
+ */
+#define TEC_FORMAT_SPEC(x)     \
+    _Generic((x),              \
+        int: "%d",             \
+        float: "%f",           \
+        double: "%lf",         \
+        unsigned long: "%lu",  \
+        unsigned int: "%u",    \
+        unsigned short: "%hu", \
+        unsigned char: "%hhu", \
+        signed long: "%ld",    \
+        signed short: "%hd",   \
+        signed char: "%hhd",   \
+        const char*: "%s",     \
+        char*: "%s",           \
         default: "%p")
+
+#define TEC_FORMAT_VALUE(x)  \
+    _Generic((x),            \
+        int: (x),            \
+        float: (x),          \
+        double: (x),         \
+        unsigned long: (x),  \
+        unsigned int: (x),   \
+        unsigned short: (x), \
+        unsigned char: (x),  \
+        signed long: (x),    \
+        signed short: (x),   \
+        signed char: (x),    \
+        const char*: (x),    \
+        char*: (x),          \
+        default: (const void*)&(x))  // avoids int-to-pointer warning
 
 #define TEC_MAX_TESTS 1024
 #define TEC_MAX_FAILURE_MESSAGE_LEN 512
@@ -90,48 +115,51 @@ static void tec_register(const char* name, const char* file, tec_func_t func) {
         }                                                              \
     } while (0)
 
-#define TEC_ASSERT_EQ(a, b)                                                   \
-    do {                                                                      \
-        tec_stats.total_assertions++;                                         \
-        __auto_type _a = a;                                                   \
-        __auto_type _b = b;                                                   \
-        if ((_a) != (_b)) {                                                   \
-            char a_str[TEC_TMP_STRBUF_LEN];                                   \
-            char b_str[TEC_TMP_STRBUF_LEN];                                   \
-            snprintf(a_str, sizeof(a_str), type_to_format_specifier(_a), _a); \
-            snprintf(b_str, sizeof(b_str), type_to_format_specifier(_b), _b); \
-            snprintf(tec_failure_message, TEC_MAX_FAILURE_MESSAGE_LEN,        \
-                     "    " TEC_RED "✗" TEC_RESET                             \
-                     " Expected %s == %s, got %s != %s (line %d)\n",          \
-                     #a, #b, a_str, b_str, __LINE__);                         \
-            tec_current_failed++;                                             \
-            tec_stats.failed_assertions++;                                    \
-            if (tec_jump_set) longjmp(tec_jump_buffer, 1);                    \
-        } else {                                                              \
-            tec_current_passed++;                                             \
-            tec_stats.passed_assertions++;                                    \
-        }                                                                     \
+#define TEC_ASSERT_EQ(a, b)                                            \
+    do {                                                               \
+        tec_stats.total_assertions++;                                  \
+        __auto_type _a = a;                                            \
+        __auto_type _b = b;                                            \
+        if ((_a) != (_b)) {                                            \
+            char a_str[TEC_TMP_STRBUF_LEN];                            \
+            char b_str[TEC_TMP_STRBUF_LEN];                            \
+            snprintf(a_str, sizeof(a_str), TEC_FORMAT_SPEC(_a),        \
+                     TEC_FORMAT_VALUE(_a));                            \
+            snprintf(b_str, sizeof(b_str), TEC_FORMAT_SPEC(_b),        \
+                     TEC_FORMAT_VALUE(_b));                            \
+            snprintf(tec_failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
+                     "    " TEC_RED "✗" TEC_RESET                      \
+                     " Expected %s == %s, got %s != %s (line %d)\n",   \
+                     #a, #b, a_str, b_str, __LINE__);                  \
+            tec_current_failed++;                                      \
+            tec_stats.failed_assertions++;                             \
+            if (tec_jump_set) longjmp(tec_jump_buffer, 1);             \
+        } else {                                                       \
+            tec_current_passed++;                                      \
+            tec_stats.passed_assertions++;                             \
+        }                                                              \
     } while (0)
 
-#define TEC_ASSERT_NE(a, b)                                                   \
-    do {                                                                      \
-        __auto_type _a = a;                                                   \
-        __auto_type _b = b;                                                   \
-        tec_stats.total_assertions++;                                         \
-        if ((_a) == (_b)) {                                                   \
-            char a_str[TEC_TMP_STRBUF_LEN];                                   \
-            snprintf(a_str, sizeof(a_str), type_to_format_specifier(_a), _a); \
-            snprintf(tec_failure_message, TEC_MAX_FAILURE_MESSAGE_LEN,        \
-                     "    " TEC_RED "✗" TEC_RESET                             \
-                     " Expected %s != %s, but both are %s (line %d)\n",       \
-                     #a, #b, a_str, __LINE__);                                \
-            tec_current_failed++;                                             \
-            tec_stats.failed_assertions++;                                    \
-            if (tec_jump_set) longjmp(tec_jump_buffer, 1);                    \
-        } else {                                                              \
-            tec_current_passed++;                                             \
-            tec_stats.passed_assertions++;                                    \
-        }                                                                     \
+#define TEC_ASSERT_NE(a, b)                                             \
+    do {                                                                \
+        __auto_type _a = a;                                             \
+        __auto_type _b = b;                                             \
+        tec_stats.total_assertions++;                                   \
+        if ((_a) == (_b)) {                                             \
+            char a_str[TEC_TMP_STRBUF_LEN];                             \
+            snprintf(a_str, sizeof(a_str), TEC_FORMAT_SPEC(_a),         \
+                     TEC_FORMAT_VALUE(_a));                             \
+            snprintf(tec_failure_message, TEC_MAX_FAILURE_MESSAGE_LEN,  \
+                     "    " TEC_RED "✗" TEC_RESET                       \
+                     " Expected %s != %s, but both are %s (line %d)\n", \
+                     #a, #b, a_str, __LINE__);                          \
+            tec_current_failed++;                                       \
+            tec_stats.failed_assertions++;                              \
+            if (tec_jump_set) longjmp(tec_jump_buffer, 1);              \
+        } else {                                                        \
+            tec_current_passed++;                                       \
+            tec_stats.passed_assertions++;                              \
+        }                                                               \
     } while (0)
 
 /*
@@ -218,7 +246,7 @@ static void tec_print_test_result(const char* test_name, int failed) {
     }
 }
 
-static int tec_run_all(void) {
+static inline int tec_run_all(void) {
     printf(TEC_BLUE "================================\n");
     printf("         C Test Runner          \n");
     printf("================================" TEC_RESET "\n\n");
