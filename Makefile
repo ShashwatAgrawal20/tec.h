@@ -9,7 +9,7 @@ SOURCES = $(wildcard $(SRCDIR)/*.c)
 OBJECTS = $(SOURCES:$(SRCDIR)/%.c=$(BUILDDIR)/%.o)
 
 TESTDIR = tests
-TEST_SRC := $(shell find $(TESTDIR) -name '*_test.c')
+TEST_SRC := $(filter-out $(TEST_RUNNER_SRC), $(shell find $(TESTDIR) -type f -name '*.c'))
 TEST_RUNNER_SRC = $(TESTDIR)/test_runner.c
 TEST_RUNNER_BIN = $(TESTDIR)/test_runner
 TEST_OBJECTS = $(filter-out $(BUILDDIR)/main.o, $(OBJECTS))
@@ -27,8 +27,8 @@ $(TEST_RUNNER_SRC): $(TEST_SRC)
 	@echo 'Generating test runner...'
 	@echo '#include "../tec.h"' > $@
 	@for file in $(TEST_SRC); do \
-		basename=$$(basename $$file); \
-		echo "#include \"$$basename\"" >> $@; \
+		rel_path=$$(echo $$file | sed 's|^$(TESTDIR)/||'); \
+		echo "#include \"$$rel_path\"" >> $@; \
 	done
 	@echo 'TEC_MAIN()' >> $@
 

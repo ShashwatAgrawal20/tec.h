@@ -254,18 +254,20 @@ static inline int tec_run_all(void) {
     const char* current_file = NULL;
 
     for (int i = 0; i < tec_count; ++i) {
-        const char* filename;
         if (current_file == NULL ||
             strcmp(current_file, tec_registry[i].file) != 0) {
             current_file = tec_registry[i].file;
-            filename = strrchr(current_file, '/');
-            if (filename)
-                filename++;
-            else
-                filename = current_file;
+            const char* display_name = current_file;
+            const char* prefix_to_strip = "tests/";
+            const size_t prefix_to_strip_len = strlen(prefix_to_strip);
+
+            if (strncmp(display_name, prefix_to_strip, prefix_to_strip_len) ==
+                0) {
+                display_name += prefix_to_strip_len;
+            }
 
             if (i > 0) printf("\n");
-            printf(TEC_MAGENTA "%s" TEC_RESET "\n", filename);
+            printf(TEC_MAGENTA "%s" TEC_RESET "\n", display_name);
         }
 
         tec_current_passed = 0;

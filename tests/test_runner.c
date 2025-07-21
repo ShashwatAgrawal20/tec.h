@@ -1,4 +1,4 @@
 #include "../tec.h"
-#include "math_utils_test.c"
-#include "string_utils_test.c"
+#include "string_utils.c"
+#include "math/math_utils.c"
 TEC_MAIN()
