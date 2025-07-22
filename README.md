@@ -18,7 +18,7 @@ Created because unit testing in C shouldn't require a complex setup, external de
 
 ```c
 // my_test.c
-#include "my_functions.h" // Your code to test
+#define TEC_IMPLEMENTATION
 #include "tec.h"          // The testing library
 
 TEC(test_addition) {
@@ -37,13 +37,13 @@ TEC_MAIN()
 4. Compile and run it:
 
 ```bash
-$gcc my_test.c my_functions.c -o test_runner && ./test_runner
+$gcc my_test.c -o test_runner && ./test_runner
 
 ================================
          C Test Runner
 ================================
 
-bs.c
+my_test.c
   ✓ test_addition
   ✓ test_strings
 
@@ -71,11 +71,14 @@ That's it. There is no step 5.
 
 The library provides a straightforward set of assertions. On failure, it prints the file, line number, and the failed expression.
 
-- `TEC_ASSERT(expression)` – Asserts that `expression` is true.
-- `TEC_ASSERT_EQ(a, b)` – Asserts that `a == b`.
-- `TEC_ASSERT_NE(a, b)` – Asserts that `a != b`.
-- `TEC_ASSERT_STR_EQ(a, b)` – Asserts that two strings are equal.
-- `TEC_ASSERT_STR_NE(a, b)` – Asserts that two strings are not equal.
+| Macro                      | Description                            | Example Usage                    |
+|----------------------------|----------------------------------------|----------------------------------|
+| `TEC_ASSERT(expression)`   | Asserts that `expression` is true.     | `TEC_ASSERT(x > 0);`             |
+| `TEC_ASSERT_EQ(a, b)`      | Asserts that `a == b`.                 | `TEC_ASSERT_EQ(result, 42);`     |
+| `TEC_ASSERT_NE(a, b)`      | Asserts that `a != b`.                 | `TEC_ASSERT_NE(a, b);`           |
+| `TEC_ASSERT_STR_EQ(a, b)`  | Asserts that two strings are equal.    | `TEC_ASSERT_STR_EQ("foo", bar);` |
+| `TEC_ASSERT_NULL(ptr)`     | Asserts that pointer is `NULL`.        | `TEC_ASSERT_NULL(ptr);`          |
+| `TEC_ASSERT_NOT_NULL(ptr)` | Asserts that pointer is not `NULL`.    | `TEC_ASSERT_NOT_NULL(ptr);`      |
 
 ---
 
@@ -84,34 +87,79 @@ The library provides a straightforward set of assertions. On failure, it prints 
 For projects with multiple source files, a Makefile keeps things tidy. The included Makefile is designed to be "hands-off."
 
 ### Project Structure
-```
-.
+```bash
+my_project/
 ├── include/
-│   └── my_lib.h
+│   └── calculator.h
 ├── src/
-│   └── my_lib.c
+│   ├── calculator.c
+│   └── main.c
 ├── tests/
-│   └── my_lib_test.c
+│   ├── test_calculator.c
+│   └── test_runner.c
 ├── Makefile
 └── tec.h
+```
+
+> [!TIP]
+> The build system automatically excludes your application's main()
+> function when compiling tests, so you can have both `src/main.c` and
+> `tests/test_runner.c` without conflicts.
+
+### Test Runner Setup
+```c
+// tests/test_runner.c
+#define TEC_IMPLEMENTATION
+#include "../tec.h"
+TEC_MAIN()
+```
+
+### Individual Test File
+
+```c
+// tests/test_calculator.c
+#include "calculator.h"
+#include "../tec.h"
+
+TEC(test_add) {
+    TEC_ASSERT_EQ(add(2, 3), 5);
+    TEC_ASSERT_EQ(add(-1, 1), 0);
+}
+
+TEC(test_multiply) {
+    TEC_ASSERT_EQ(multiply(3, 4), 12);
+    TEC_ASSERT_EQ(multiply(0, 100), 0);
+}
 ```
 
 ### Automated Testing
 
 The provided Makefile automatically:
-- Finds your `*_test.c` files
-- Generates `test_runner.c`
+- Finds your `test` files
 - Compiles the test binary
 - Runs the tests
-- Cleans up afterward
 
 **Usage:**
 
 ```bash
 $ make test
-Generating test runner...
-gcc -Wall -Wextra -Iinclude -o tests/test_runner tests/test_runner.c build/my_lib.o
-./tests/test_runner
-...
-...
+gcc -Wall -Wextra -pedantic -Iinclude -c tests/calculator.c -o build/tests/calculator.o
+gcc -Wall -Wextra -pedantic -Iinclude -c tests/test_runner.c -o build/tests/test_runner.o
+gcc -Wall -Wextra -pedantic -Iinclude -c src/calculator.c -o build/src/calculator.o
+gcc -Wall -Wextra -pedantic -Iinclude -o test_runner build/tests/calculator.o build/tests/test_runner.o build/src/calculator.o
+Running tests...
+./test_runner
+================================
+         C Test Runner
+================================
+
+calculator.c
+  ✓ test_add
+  ✓ test_multiply
+
+================================
+Tests: 2 total, 2 passed, 0 failed
+Assertions: 4 total, 4 passed, 0 failed
+
+All tests passed!
 ```
