@@ -1,4 +1,3 @@
+#define TEC_IMPLEMENTATION
 #include "../tec.h"
-#include "string_utils.c"
-#include "math/math_utils.c"
 TEC_MAIN()

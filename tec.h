@@ -14,6 +14,10 @@
 #define TEC_CYAN "\033[36m"
 #define TEC_RESET "\033[0m"
 
+#define TEC_MAX_TESTS 1024
+#define TEC_MAX_FAILURE_MESSAGE_LEN 512
+#define TEC_TMP_STRBUF_LEN 32
+
 typedef void (*tec_func_t)(void);
 
 typedef struct {
@@ -21,6 +25,28 @@ typedef struct {
     const char* file;
     tec_func_t func;
 } tec_entry_t;
+
+
+typedef struct {
+    int total_tests;
+    int passed_tests;
+    int failed_tests;
+    int total_assertions;
+    int passed_assertions;
+    int failed_assertions;
+} tec_stats_t;
+
+void tec_register(const char* name, const char* file, tec_func_t func);
+int tec_run_all(void);
+
+extern tec_stats_t tec_stats ;
+extern char tec_failure_message[];
+extern tec_entry_t tec_registry[];
+extern int tec_count;
+extern int tec_current_passed ;
+extern int tec_current_failed ;
+extern jmp_buf tec_jump_buffer;
+extern int tec_jump_set ;
 
 /*
  * keep TEC_FORMAT_SPEC and TEC_FORMAT_VALUE split to avoid -Wformat issues
@@ -60,42 +86,6 @@ typedef struct {
         const char*: (x),    \
         char*: (x),          \
         default: (const void*)&(x))  // avoids int-to-pointer warning
-
-#define TEC_MAX_TESTS 1024
-#define TEC_MAX_FAILURE_MESSAGE_LEN 512
-#define TEC_TMP_STRBUF_LEN 32
-static char tec_failure_message[TEC_MAX_FAILURE_MESSAGE_LEN];
-static tec_entry_t tec_registry[TEC_MAX_TESTS];
-static int tec_count = 0;
-static int tec_current_passed = 0;
-static int tec_current_failed = 0;
-static jmp_buf tec_jump_buffer;
-static int tec_jump_set = 0;
-
-typedef struct {
-    int total_tests;
-    int passed_tests;
-    int failed_tests;
-    int total_assertions;
-    int passed_assertions;
-    int failed_assertions;
-} tec_stats_t;
-
-static tec_stats_t tec_stats = {0};
-
-static void tec_register(const char* name, const char* file, tec_func_t func) {
-    if (!name || !file || !func) {
-        fprintf(stderr,
-                TEC_RED "Error: NULL argument to tec_register\n" TEC_RESET);
-        return;
-    }
-    if (tec_count < TEC_MAX_TESTS) {
-        tec_registry[tec_count].name = name;
-        tec_registry[tec_count].file = file;
-        tec_registry[tec_count].func = func;
-        tec_count++;
-    }
-}
 
 #define TEC_ASSERT(condition)                                          \
     do {                                                               \
@@ -233,7 +223,33 @@ static void tec_register(const char* name, const char* file, tec_func_t func) {
     }                                                                         \
     static void tec_##test_name(void)
 
-static void tec_print_test_result(const char* test_name, int failed) {
+
+
+#ifdef TEC_IMPLEMENTATION
+char tec_failure_message[TEC_MAX_FAILURE_MESSAGE_LEN];
+tec_entry_t tec_registry[TEC_MAX_TESTS];
+int tec_count = 0;
+int tec_current_passed = 0;
+int tec_current_failed = 0;
+jmp_buf tec_jump_buffer;
+int tec_jump_set = 0;
+tec_stats_t tec_stats = {0};
+
+void tec_register(const char* name, const char* file, tec_func_t func) {
+    if (!name || !file || !func) {
+        fprintf(stderr,
+                TEC_RED "Error: NULL argument to tec_register\n" TEC_RESET);
+        return;
+    }
+    if (tec_count < TEC_MAX_TESTS) {
+        tec_registry[tec_count].name = name;
+        tec_registry[tec_count].file = file;
+        tec_registry[tec_count].func = func;
+        tec_count++;
+    }
+}
+
+void tec_print_test_result(const char* test_name, int failed) {
     if (failed == 0) {
         printf("  " TEC_GREEN "✓" TEC_RESET " %s \n", test_name);
     } else {
@@ -246,7 +262,7 @@ static void tec_print_test_result(const char* test_name, int failed) {
     }
 }
 
-static inline int tec_run_all(void) {
+int tec_run_all(void) {
     printf(TEC_BLUE "================================\n");
     printf("         C Test Runner          \n");
     printf("================================" TEC_RESET "\n\n");
@@ -311,4 +327,5 @@ static inline int tec_run_all(void) {
 #define TEC_MAIN() \
     int main(void) { return tec_run_all(); }
 
+#endif  // TEC_IMPLEMENTATION
 #endif  // TEC_H

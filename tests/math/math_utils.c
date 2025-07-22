@@ -1,6 +1,6 @@
-#include "../include/math_utils.h"
+#include "../../include/math_utils.h"
 
-#include "../tec.h"
+#include "../../tec.h"
 
 TEC(test_add_positive_numbers) {
     int result = add(2, 3);
