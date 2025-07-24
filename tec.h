@@ -26,7 +26,6 @@ typedef struct {
     tec_func_t func;
 } tec_entry_t;
 
-
 typedef struct {
     int total_tests;
     int passed_tests;
@@ -39,14 +38,14 @@ typedef struct {
 void tec_register(const char* name, const char* file, tec_func_t func);
 int tec_run_all(void);
 
-extern tec_stats_t tec_stats ;
+extern tec_stats_t tec_stats;
 extern char tec_failure_message[];
 extern tec_entry_t tec_registry[];
 extern int tec_count;
-extern int tec_current_passed ;
-extern int tec_current_failed ;
+extern int tec_current_passed;
+extern int tec_current_failed;
 extern jmp_buf tec_jump_buffer;
-extern int tec_jump_set ;
+extern int tec_jump_set;
 
 /*
  * keep TEC_FORMAT_SPEC and TEC_FORMAT_VALUE split to avoid -Wformat issues
@@ -96,12 +95,9 @@ extern int tec_jump_set ;
                      "    " TEC_RED "✗" TEC_RESET                      \
                      " Assertion failed: %s (line %d)\n",              \
                      #condition, __LINE__);                            \
-            tec_current_failed++;                                      \
-            tec_stats.failed_assertions++;                             \
-            if (tec_jump_set) longjmp(tec_jump_buffer, 1);             \
+            TEC_POST_FAIL();                                           \
         } else {                                                       \
-            tec_current_passed++;                                      \
-            tec_stats.passed_assertions++;                             \
+            TEC_POST_PASS();                                           \
         }                                                              \
     } while (0)
 
@@ -121,12 +117,9 @@ extern int tec_jump_set ;
                      "    " TEC_RED "✗" TEC_RESET                      \
                      " Expected %s == %s, got %s != %s (line %d)\n",   \
                      #a, #b, a_str, b_str, __LINE__);                  \
-            tec_current_failed++;                                      \
-            tec_stats.failed_assertions++;                             \
-            if (tec_jump_set) longjmp(tec_jump_buffer, 1);             \
+            TEC_POST_FAIL();                                           \
         } else {                                                       \
-            tec_current_passed++;                                      \
-            tec_stats.passed_assertions++;                             \
+            TEC_POST_PASS();                                           \
         }                                                              \
     } while (0)
 
@@ -143,12 +136,9 @@ extern int tec_jump_set ;
                      "    " TEC_RED "✗" TEC_RESET                       \
                      " Expected %s != %s, but both are %s (line %d)\n", \
                      #a, #b, a_str, __LINE__);                          \
-            tec_current_failed++;                                       \
-            tec_stats.failed_assertions++;                              \
-            if (tec_jump_set) longjmp(tec_jump_buffer, 1);              \
+            TEC_POST_FAIL();                                            \
         } else {                                                        \
-            tec_current_passed++;                                       \
-            tec_stats.passed_assertions++;                              \
+            TEC_POST_PASS();                                            \
         }                                                               \
     } while (0)
 
@@ -171,12 +161,9 @@ extern int tec_jump_set ;
                      "    " TEC_RED "✗" TEC_RESET                              \
                      " Expected strings equal: \"%s\" != \"%s\" (line %d)\n",  \
                      (_a), (_b), __LINE__);                                    \
-            tec_current_failed++;                                              \
-            tec_stats.failed_assertions++;                                     \
-            if (tec_jump_set) longjmp(tec_jump_buffer, 1);                     \
+            TEC_POST_FAIL();                                                   \
         } else {                                                               \
-            tec_current_passed++;                                              \
-            tec_stats.passed_assertions++;                                     \
+            TEC_POST_PASS();                                                   \
         }                                                                      \
     } while (0)
 
@@ -189,12 +176,9 @@ extern int tec_jump_set ;
                      "    " TEC_RED "✗" TEC_RESET                      \
                      " Expected %s to be NULL, got %p (line %d)\n",    \
                      #ptr, (void*)(_ptr), __LINE__);                   \
-            tec_current_failed++;                                      \
-            tec_stats.failed_assertions++;                             \
-            if (tec_jump_set) longjmp(tec_jump_buffer, 1);             \
+            TEC_POST_FAIL();                                           \
         } else {                                                       \
-            tec_current_passed++;                                      \
-            tec_stats.passed_assertions++;                             \
+            TEC_POST_PASS();                                           \
         }                                                              \
     } while (0)
 
@@ -207,12 +191,9 @@ extern int tec_jump_set ;
                      "    " TEC_RED "✗" TEC_RESET                      \
                      " Expected %s to not be NULL (line %d)\n",        \
                      #ptr, __LINE__);                                  \
-            tec_current_failed++;                                      \
-            tec_stats.failed_assertions++;                             \
-            if (tec_jump_set) longjmp(tec_jump_buffer, 1);             \
+            TEC_POST_FAIL();                                           \
         } else {                                                       \
-            tec_current_passed++;                                      \
-            tec_stats.passed_assertions++;                             \
+            TEC_POST_PASS();                                           \
         }                                                              \
     } while (0)
 
@@ -223,7 +204,18 @@ extern int tec_jump_set ;
     }                                                                         \
     static void tec_##test_name(void)
 
+#define TEC_POST_FAIL()                                \
+    do {                                               \
+        tec_current_failed++;                          \
+        tec_stats.failed_assertions++;                 \
+        if (tec_jump_set) longjmp(tec_jump_buffer, 1); \
+    } while (0);
 
+#define TEC_POST_PASS()                \
+    do {                               \
+        tec_current_passed++;          \
+        tec_stats.passed_assertions++; \
+    } while (0);
 
 #ifdef TEC_IMPLEMENTATION
 char tec_failure_message[TEC_MAX_FAILURE_MESSAGE_LEN];
