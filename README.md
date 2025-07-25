@@ -53,8 +53,11 @@ Assertions: 3 total, 3 passed, 0 failed
 
 All tests passed!
 ```
-
 That's it. There is no step 5.
+
+> [!CAUTION]
+> TEC relies on the `__auto_type` GCC extension internally for type inference in assertions.
+> This may be switched to `typeof` to improve compatibility with Clang.
 
 ---
 
@@ -163,3 +166,14 @@ Assertions: 4 total, 4 passed, 0 failed
 
 All tests passed!
 ```
+
+> [!NOTE]
+> By default, the number of tests is limited to 1024 (hardcoded).
+> If you need to increase this limit, you can override it by defining `TEC_MAX_TESTS` before including the header:
+>
+> This approach may change in the future. Switching to dynamic allocation is being considered,
+> as a fixed size may be too restrictive for larger test suites or unnecessarily large for smaller projects.
+> ```c
+> #define TEC_MAX_TEST UPDATED_NUMBER
+> #include "../tec.h"
+> ```

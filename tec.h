@@ -14,7 +14,9 @@
 #define TEC_CYAN "\033[36m"
 #define TEC_RESET "\033[0m"
 
+#ifndef TEC_MAX_TESTS
 #define TEC_MAX_TESTS 1024
+#endif
 #define TEC_MAX_FAILURE_MESSAGE_LEN 512
 #define TEC_TMP_STRBUF_LEN 32
 
