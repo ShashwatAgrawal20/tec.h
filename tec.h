@@ -14,9 +14,6 @@
 #define TEC_CYAN "\033[36m"
 #define TEC_RESET "\033[0m"
 
-#ifndef TEC_MAX_TESTS
-#define TEC_MAX_TESTS 1024
-#endif
 #define TEC_MAX_FAILURE_MESSAGE_LEN 512
 #define TEC_TMP_STRBUF_LEN 32
 
@@ -42,8 +39,9 @@ int tec_run_all(void);
 
 extern tec_stats_t tec_stats;
 extern char tec_failure_message[];
-extern tec_entry_t tec_registry[];
+extern tec_entry_t* tec_registry;
 extern int tec_count;
+extern int tec_capacity;
 extern int tec_current_passed;
 extern int tec_current_failed;
 extern jmp_buf tec_jump_buffer;
@@ -162,7 +160,7 @@ extern int tec_jump_set;
             snprintf(tec_failure_message, TEC_MAX_FAILURE_MESSAGE_LEN,         \
                      "    " TEC_RED "✗" TEC_RESET                              \
                      " Expected strings equal: \"%s\" != \"%s\" (line %d)\n",  \
-                     (_a), (_b), __LINE__);                                    \
+                     (_a ? _a : "(null)"), (_b ? _b : "(null)"), __LINE__);    \
             TEC_POST_FAIL();                                                   \
         } else {                                                               \
             TEC_POST_PASS();                                                   \
@@ -221,8 +219,9 @@ extern int tec_jump_set;
 
 #ifdef TEC_IMPLEMENTATION
 char tec_failure_message[TEC_MAX_FAILURE_MESSAGE_LEN];
-tec_entry_t tec_registry[TEC_MAX_TESTS];
+tec_entry_t* tec_registry = NULL;
 int tec_count = 0;
+int tec_capacity = 0;
 int tec_current_passed = 0;
 int tec_current_failed = 0;
 jmp_buf tec_jump_buffer;
@@ -235,12 +234,27 @@ void tec_register(const char* name, const char* file, tec_func_t func) {
                 TEC_RED "Error: NULL argument to tec_register\n" TEC_RESET);
         return;
     }
-    if (tec_count < TEC_MAX_TESTS) {
-        tec_registry[tec_count].name = name;
-        tec_registry[tec_count].file = file;
-        tec_registry[tec_count].func = func;
-        tec_count++;
+
+    if (tec_count >= tec_capacity) {
+        tec_capacity = tec_capacity == 0 ? 8 : tec_capacity * 2;
+        tec_entry_t* new_registry =
+            realloc(tec_registry, tec_capacity * sizeof(tec_entry_t));
+
+        if (new_registry == NULL) {
+            fprintf(stderr, TEC_RED
+                    "Error: Failed to allocate memory for test "
+                    "registry\n" TEC_RESET);
+            free(tec_registry);
+            exit(1);
+        }
+
+        tec_registry = new_registry;
     }
+
+    tec_registry[tec_count].name = name;
+    tec_registry[tec_count].file = file;
+    tec_registry[tec_count].func = func;
+    tec_count++;
 }
 
 void tec_print_test_result(const char* test_name, int failed) {
@@ -261,6 +275,7 @@ int tec_run_all(void) {
     printf("         C Test Runner          \n");
     printf("================================" TEC_RESET "\n\n");
 
+    int result = 0;
     const char* current_file = NULL;
 
     for (int i = 0; i < tec_count; ++i) {
@@ -311,11 +326,17 @@ int tec_run_all(void) {
 
     if (tec_stats.failed_tests == 0) {
         printf("\n" TEC_GREEN "All tests passed!" TEC_RESET "\n");
-        return 0;
+        result = 0;
     } else {
         printf("\n" TEC_RED "Some tests failed!" TEC_RESET "\n");
-        return 1;
+        result = 1;
     }
+
+    free(tec_registry);
+    tec_registry = NULL;
+    tec_count = 0;
+    tec_capacity = 0;
+    return result;
 }
 
 #define TEC_MAIN() \

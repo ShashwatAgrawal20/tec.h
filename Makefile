@@ -7,7 +7,7 @@ TESTDIR = tests
 BUILDDIR = build
 
 TARGET = main
-TEST_RUNNER_BIN = test_runner
+TEST_RUNNER_BIN = $(TESTDIR)/test_runner
 TEST_RUNNER_SRC := $(TESTDIR)/test_runner.c
 
 SRC_FILES := $(wildcard $(SRCDIR)/*.c)
