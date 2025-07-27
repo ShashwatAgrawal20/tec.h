@@ -47,6 +47,11 @@ extern int tec_current_failed;
 extern jmp_buf tec_jump_buffer;
 extern int tec_jump_set;
 
+#define TEC_TRY_BLOCK                                    \
+    for (int _tec_loop_once = (tec_jump_set = 1, 1);     \
+         _tec_loop_once && setjmp(tec_jump_buffer) == 0; \
+         _tec_loop_once = 0, tec_jump_set = 0)
+
 /*
  * keep TEC_FORMAT_SPEC and TEC_FORMAT_VALUE split to avoid -Wformat issues
  * I tried snprintf-style macro but, it caused bogus format warnings on the LSP

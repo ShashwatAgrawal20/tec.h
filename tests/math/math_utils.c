@@ -2,6 +2,26 @@
 
 #include "../../tec.h"
 
+#ifdef RUN_TEARDOWN_DEMO
+TEC(teardown_with_cleanup) {
+    int *value = NULL;
+
+    // TRY BLOCK: Contains setup and assertions.
+    // If an assert fails, execution jumps past this block.
+    TEC_TRY_BLOCK {
+        value = malloc(sizeof(int));
+        TEC_ASSERT_NE(NULL, value);
+        *value = 69;
+        TEC_ASSERT_EQ(*value, 420);
+    }
+
+    // FINALLY BLOCK: This code is guaranteed to run.
+    // No keyword is needed; it's simply the code that follows the try block.
+    free(value);
+    printf("Teardown complete: memory freed\n");
+}
+#endif
+
 TEC(test_add_positive_numbers) {
     int result = add(2, 3);
     TEC_ASSERT_EQ(result, 5);
