@@ -2,8 +2,8 @@
 
 #include "../../tec.h"
 
-#ifdef RUN_TEARDOWN_DEMO
 TEC(teardown_with_cleanup) {
+    TEC_SKIP("Fails intentionally to demonstrate try/teardown.");
     int *value = NULL;
 
     // TRY BLOCK: Contains setup and assertions.
@@ -20,7 +20,6 @@ TEC(teardown_with_cleanup) {
     free(value);
     printf("Teardown complete: memory freed\n");
 }
-#endif
 
 TEC(test_add_positive_numbers) {
     int result = add(2, 3);

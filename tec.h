@@ -16,6 +16,9 @@
 
 #define TEC_MAX_FAILURE_MESSAGE_LEN 512
 #define TEC_TMP_STRBUF_LEN 32
+#define TEC_JUMP_INITIAL_CALL 0
+#define TEC_FAIL_JUMP_CODE 1
+#define TEC_SKIP_JUMP_CODE 2
 
 typedef void (*tec_func_t)(void);
 
@@ -29,6 +32,7 @@ typedef struct {
     int total_tests;
     int passed_tests;
     int failed_tests;
+    int skipped_tests;
     int total_assertions;
     int passed_assertions;
     int failed_assertions;
@@ -209,11 +213,11 @@ extern int tec_jump_set;
     }                                                                         \
     static void tec_##test_name(void)
 
-#define TEC_POST_FAIL()                                \
-    do {                                               \
-        tec_current_failed++;                          \
-        tec_stats.failed_assertions++;                 \
-        if (tec_jump_set) longjmp(tec_jump_buffer, 1); \
+#define TEC_POST_FAIL()                                                 \
+    do {                                                                \
+        tec_current_failed++;                                           \
+        tec_stats.failed_assertions++;                                  \
+        if (tec_jump_set) longjmp(tec_jump_buffer, TEC_FAIL_JUMP_CODE); \
     } while (0);
 
 #define TEC_POST_PASS()                \
@@ -221,6 +225,15 @@ extern int tec_jump_set;
         tec_current_passed++;          \
         tec_stats.passed_assertions++; \
     } while (0);
+
+#define TEC_SKIP(reason)                                                     \
+    do {                                                                     \
+        const char* _reason = (reason);                                      \
+        snprintf(tec_failure_message, TEC_MAX_FAILURE_MESSAGE_LEN,           \
+                 "    " TEC_YELLOW "»" TEC_RESET " Skipped: %s (line %d)\n", \
+                 _reason, __LINE__);                                         \
+        if (tec_jump_set) longjmp(tec_jump_buffer, TEC_SKIP_JUMP_CODE);      \
+    } while (0)
 
 #ifdef TEC_IMPLEMENTATION
 char tec_failure_message[TEC_MAX_FAILURE_MESSAGE_LEN];
@@ -262,16 +275,19 @@ void tec_register(const char* name, const char* file, tec_func_t func) {
     tec_count++;
 }
 
-void tec_print_test_result(const char* test_name, int failed) {
-    if (failed == 0) {
-        printf("  " TEC_GREEN "✓" TEC_RESET " %s \n", test_name);
+void tec_process_test_result(int jump_val, const tec_entry_t* test) {
+    if (jump_val == TEC_SKIP_JUMP_CODE) {
+        tec_stats.skipped_tests++;
+        printf("  " TEC_YELLOW "»" TEC_RESET " %s\n", test->name);
+        printf("%s", tec_failure_message);
+    } else if (jump_val == TEC_FAIL_JUMP_CODE || tec_current_failed > 0) {
+        tec_stats.failed_tests++;
+        printf("  " TEC_RED "✗" TEC_RESET " %s - %d assertion(s) failed\n",
+               test->name, tec_current_failed);
+        printf("%s", tec_failure_message);
     } else {
-        fprintf(stderr,
-                "  " TEC_RED "✗" TEC_RESET
-                " %s "
-                " - %d assertion(s) failed\n",
-                test_name, failed);
-        fprintf(stderr, "%s", tec_failure_message);
+        tec_stats.passed_tests++;
+        printf("  " TEC_GREEN "✓" TEC_RESET " %s\n", test->name);
     }
 }
 
@@ -284,9 +300,9 @@ int tec_run_all(void) {
     const char* current_file = NULL;
 
     for (int i = 0; i < tec_count; ++i) {
-        if (current_file == NULL ||
-            strcmp(current_file, tec_registry[i].file) != 0) {
-            current_file = tec_registry[i].file;
+        tec_entry_t* test = &tec_registry[i];
+        if (current_file == NULL || strcmp(current_file, test->file) != 0) {
+            current_file = test->file;
             const char* display_name = current_file;
             const char* prefix_to_strip = "tests/";
             const size_t prefix_to_strip_len = strlen(prefix_to_strip);
@@ -302,39 +318,39 @@ int tec_run_all(void) {
 
         tec_current_passed = 0;
         tec_current_failed = 0;
+        tec_failure_message[0] = '\0';
+        tec_stats.total_tests++;
 
         tec_jump_set = 1;
-        if (setjmp(tec_jump_buffer) == 0) {
-            tec_registry[i].func();
+        int jump_val = setjmp(tec_jump_buffer);
+        if (jump_val == TEC_JUMP_INITIAL_CALL) {
+            test->func();
         }
         tec_jump_set = 0;
 
-        tec_print_test_result(tec_registry[i].name, tec_current_failed);
-
-        tec_stats.total_tests++;
-        if (tec_current_failed == 0) {
-            tec_stats.passed_tests++;
-        } else {
-            tec_stats.failed_tests++;
-        }
+        tec_process_test_result(jump_val, test);
     }
 
     printf("\n" TEC_BLUE "================================" TEC_RESET "\n");
     printf("Tests: %d total, " TEC_GREEN "%d passed" TEC_RESET ", " TEC_RED
-           "%d failed" TEC_RESET "\n",
+           "%d failed" TEC_RESET ", " TEC_YELLOW "%d skipped" TEC_RESET "\n",
            tec_stats.total_tests, tec_stats.passed_tests,
-           tec_stats.failed_tests);
+           tec_stats.failed_tests, tec_stats.skipped_tests);
     printf("Assertions: %d total, " TEC_GREEN "%d passed" TEC_RESET ", " TEC_RED
            "%d failed" TEC_RESET "\n",
            tec_stats.total_assertions, tec_stats.passed_assertions,
            tec_stats.failed_assertions);
 
-    if (tec_stats.failed_tests == 0) {
+    if (tec_stats.failed_tests == 0 && tec_stats.skipped_tests == 0) {
         printf("\n" TEC_GREEN "All tests passed!" TEC_RESET "\n");
         result = 0;
-    } else {
+    } else if (tec_stats.failed_tests > 0) {
         printf("\n" TEC_RED "Some tests failed!" TEC_RESET "\n");
         result = 1;
+    } else {
+        printf("\n" TEC_YELLOW "Tests passed, but some were skipped." TEC_RESET
+               "\n");
+        result = 0;
     }
 
     free(tec_registry);
