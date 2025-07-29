@@ -1,14 +1,25 @@
 # tec.h
 
-A tiny, header-only testing library for C.
-
-Created because unit testing in C shouldn't require a complex setup, external dependencies, or build system gymnastics. This is a single header file that gets out of your way so you can just write tests.
+A tiny, **header-only** testing library for C. Created because unit testing
+shouldn't require complex setup or build system gymnastics, **tec.h** gets out of
+your way so you can just write tests. Zero-setup unit testing is just one `#include` away.
 
 > [!IMPORTANT]
 > TEC is currently in the early stages of development, and while it is somewhat
 > functional, it may still have some limitations and is subject to change.
 
+## Table of Contents
+- [In Action](#in-action)
+- [Quick Start](#quick-start)
+- [Features](#features)
+- [Assertion API](#assertion-api)
+- [Advanced Usage](#advanced-usage)
+- [Example Project & Makefile](#example-project--makefile)
+
 ***
+
+## In Action
+![TEC Test Runner Output](./example_output.png)
 
 ## Quick Start
 
@@ -48,7 +59,7 @@ my_test.c
   ✓ test_strings
 
 ================================
-Tests: 2 total, 2 passed, 0 failed
+Tests: 2 total, 2 passed, 0 failed, 0 skipped
 Assertions: 3 total, 3 passed, 0 failed
 
 All tests passed!
@@ -56,17 +67,18 @@ All tests passed!
 That's it. There is no step 5.
 
 > [!CAUTION]
-> TEC relies on the `__auto_type` GCC extension internally for type inference in assertions.
-> This may be switched to `typeof` to improve compatibility with Clang.
+> TEC relies on GCC extensions like `__auto_type` and `__attribute__((constructor))`.
+> This makes it highly compatible with GCC and Clang but may not work with other compilers like MSVC.
 
 ---
 
 ## Features
 
 - **Header-Only**: Just `#include "tec.h"`. No libraries to build or link.
-- **No Dependencies**: Written in standard C.
+- **No Dependencies**: Written in standard C with common GCC/Clang extensions.
 - **Simple Assertions**: A core set of ASSERT macros that cover the essentials.
 - **Automatic Test Registration**: The `TEC()` macro registers tests. `TEC_MAIN()` runs them.
+- **Dynamic Test Capacity**: The test registry grows as needed, so you don't have to worry about a predefined test limit.
 
 ---
 
@@ -74,14 +86,58 @@ That's it. There is no step 5.
 
 The library provides a straightforward set of assertions. On failure, it prints the file, line number, and the failed expression.
 
-| Macro                      | Description                            | Example Usage                    |
-|----------------------------|----------------------------------------|----------------------------------|
-| `TEC_ASSERT(expression)`   | Asserts that `expression` is true.     | `TEC_ASSERT(x > 0);`             |
-| `TEC_ASSERT_EQ(a, b)`      | Asserts that `a == b`.                 | `TEC_ASSERT_EQ(result, 42);`     |
-| `TEC_ASSERT_NE(a, b)`      | Asserts that `a != b`.                 | `TEC_ASSERT_NE(a, b);`           |
-| `TEC_ASSERT_STR_EQ(a, b)`  | Asserts that two strings are equal.    | `TEC_ASSERT_STR_EQ("foo", bar);` |
-| `TEC_ASSERT_NULL(ptr)`     | Asserts that pointer is `NULL`.        | `TEC_ASSERT_NULL(ptr);`          |
-| `TEC_ASSERT_NOT_NULL(ptr)` | Asserts that pointer is not `NULL`.    | `TEC_ASSERT_NOT_NULL(ptr);`      |
+| Macro                      | Description                                | Example Usage                            |
+|----------------------------|--------------------------------------------|------------------------------------------|
+| `TEC_ASSERT(expression)`   | Asserts that `expression` is true.         | `TEC_ASSERT(x > 0);`                     |
+| `TEC_ASSERT_EQ(a, b)`      | Asserts that `a == b`.                     | `TEC_ASSERT_EQ(result, 42);`             |
+| `TEC_ASSERT_NE(a, b)`      | Asserts that `a != b`.                     | `TEC_ASSERT_NE(a, b);`                   |
+| `TEC_ASSERT_STR_EQ(a, b)`  | Asserts that two strings are equal.        | `TEC_ASSERT_STR_EQ("foo", bar);`         |
+| `TEC_ASSERT_NULL(ptr)`     | Asserts that pointer is `NULL`.            | `TEC_ASSERT_NULL(ptr);`                  |
+| `TEC_ASSERT_NOT_NULL(ptr)` | Asserts that pointer is not `NULL`.        | `TEC_ASSERT_NOT_NULL(ptr);`              |
+| `TEC_SKIP(reason)`         | Skips the current test and reports reason. | `TEC_SKIP("Not implemented yet.");`      |
+
+---
+
+## Advanced Usage
+
+### Skipping Tests
+You can skip a test by placing `TEC_SKIP("reason")` at the beginning of its body.
+This is useful for temporarily disabling tests for features that are not yet implemented.
+
+```c
+TEC(test_new_feature) {
+    TEC_SKIP("This feature isn't ready for testing yet.");
+    // This code will not be executed.
+    TEC_ASSERT(false);
+}
+```
+
+### Test Blocks with Cleanup
+When an assertion fails, `tec.h` uses `longjmp` to immediately stop the test.
+This can cause resource leaks if the test allocated memory or opened files.
+To ensure cleanup code runs, you can wrap your assertions in a `TEC_TRY_BLOCK`.
+
+If an assertion inside the block fails, execution will "jump" to the end of the
+block, allowing the code that follows it to run. The test will still be marked as a failure.
+
+```c
+TEC(test_with_cleanup) {
+    char* buffer = malloc(100);
+    TEC_ASSERT_NOT_NULL(buffer); // A failure here would skip the free() call.
+
+    TEC_TRY_BLOCK {
+        // Assertions inside this block are safe.
+        strcpy(buffer, "hello");
+        TEC_ASSERT_EQ(buffer[0], 'h');
+        TEC_ASSERT_EQ(1, 0); // This will fail...
+        TEC_ASSERT(false);   // ...and this line will never be reached.
+    }
+
+    // ...but the jump lands here, so cleanup can proceed.
+    printf("Cleaning up resources...\n");
+    free(buffer);
+}
+```
 
 ---
 
@@ -161,19 +217,8 @@ calculator.c
   ✓ test_multiply
 
 ================================
-Tests: 2 total, 2 passed, 0 failed
+Tests: 2 total, 2 passed, 0 failed, 0 skipped
 Assertions: 4 total, 4 passed, 0 failed
 
 All tests passed!
 ```
-
-> [!NOTE]
-> By default, the number of tests is limited to 1024 (hardcoded).
-> If you need to increase this limit, you can override it by defining `TEC_MAX_TESTS` before including the header:
->
-> This approach may change in the future. Switching to dynamic allocation is being considered,
-> as a fixed size may be too restrictive for larger test suites or unnecessarily large for smaller projects.
-> ```c
-> #define TEC_MAX_TEST UPDATED_NUMBER
-> #include "../tec.h"
-> ```
