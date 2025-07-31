@@ -2,7 +2,7 @@
 
 #include "../../tec.h"
 
-TEC(teardown_with_cleanup) {
+TEC(framework, teardown_with_cleanup) {
     TEC_SKIP("Fails intentionally to demonstrate try/teardown.");
     int *value = NULL;
 
@@ -21,37 +21,30 @@ TEC(teardown_with_cleanup) {
     printf("Teardown complete: memory freed\n");
 }
 
-TEC(test_add_positive_numbers) {
-    int result = add(2, 3);
-    TEC_ASSERT_EQ(result, 5);
-    TEC_ASSERT(result > 0);
-    TEC_ASSERT_NE(result, 0);
+TEC(mathutils, addition) {
+    const int five = 5;
+    TEC_ASSERT_EQ(add(2, 3), five);
+    TEC_ASSERT_EQ(add(-10, 5), -5);
 
-    result = add(10, 20);
-    TEC_ASSERT_EQ(result, 30);
-    TEC_ASSERT(result >= 30);
-    TEC_ASSERT_NE(result, 0);
+    TEC_ASSERT_NE(add(2, 2), 5);
 }
 
-TEC(test_add_negative_numbers) {
-    int result = add(-5, -3);
-    TEC_ASSERT_EQ(result, -8);
-    TEC_ASSERT(result < 0);
-    TEC_ASSERT_NE(result++, 0);
+TEC(mathutils, numerical_comparisons) {
+    int five = multiply(5, 1);
+    int ten = multiply(5, 2);
 
-    result = add(-10, 5);
-    TEC_ASSERT_EQ(result, -5);
-    TEC_ASSERT(result < 0);
-    TEC_ASSERT_NE(result, 0);
+    TEC_ASSERT(ten > five);
+    TEC_ASSERT(five < ten);
+    TEC_ASSERT(ten >= ten);
+    TEC_ASSERT(five <= five);
 }
 
-TEC(test_multiply_basic) {
-    int result = multiply(3, 4);
-    TEC_ASSERT_EQ(result, 12);
-    TEC_ASSERT(result % 2 == 0);
-    TEC_ASSERT_NE(result, 0);
+TEC(mathutils, multiply) {
+    TEC_ASSERT_EQ(multiply(3, 4), 12);
+    TEC_ASSERT(multiply(5, 2) % 2 == 0);
+    TEC_ASSERT_NE(multiply(1, 1), 0);
 
-    result = multiply(-2, 5);
+    int result = multiply(-2, 5);
     TEC_ASSERT_EQ(result, -10);
     TEC_ASSERT(result < 0);
     TEC_ASSERT_NE(result, 0);
@@ -61,36 +54,33 @@ TEC(test_multiply_basic) {
     TEC_ASSERT(result <= 0);
 }
 
-TEC(test_divide_basic) {
-    int result = divide(10, 2);
-    TEC_ASSERT_EQ(result, 5);
-    TEC_ASSERT(result > 0);
-    TEC_ASSERT_NE(result, 0);
+TEC(mathutils, division) {
+    TEC_ASSERT_EQ(divide(10, 2), 5);
+    TEC_ASSERT(divide(9, 3) > 0);
 
-    result = divide(15, 3);
+    int result = divide(15, 3);
     TEC_ASSERT_EQ(result, 5);
-    TEC_ASSERT(result == 5);
 
+    result = divide(0, 5);
+    TEC_ASSERT_EQ(result, 0);
+
+    // Edge case: divide by zero
     result = divide(7, 0);
     TEC_ASSERT_EQ(result, 0);
-    TEC_ASSERT(result == 0);
 }
 
-TEC(test_factorial) {
-    int result = factorial(0);
-    TEC_ASSERT_EQ(result, 1);
-    TEC_ASSERT_NE(result, 0);
+TEC(mathutils, factorial) {
+    TEC_ASSERT_EQ(factorial(0), 1);  // Edge case: 0! = 1
+    TEC_ASSERT_EQ(factorial(5), 120);
+    TEC_ASSERT_EQ(factorial(10), 3628800);
 
-    result = factorial(1);
-    TEC_ASSERT_EQ(result, 1);
-    TEC_ASSERT(result >= 1);
+    // Test for invalid input (negative numbers)
+    TEC_ASSERT_EQ(factorial(-5), 1);
+}
 
-    result = factorial(5);
-    TEC_ASSERT_NE(result, 0);
-    TEC_ASSERT(result > 100);
-    TEC_ASSERT_EQ(result, 120);
-
-    result = factorial(4);
-    TEC_ASSERT_EQ(result, 24);
-    TEC_ASSERT(result % 4 == 0);
+TEC(logic, booleans_act_right) {
+    TEC_ASSERT(1);
+    TEC_ASSERT(!0);
+    TEC_ASSERT_EQ(1 == 1, 1);
+    TEC_ASSERT_NE(1 == 0, 1);
 }

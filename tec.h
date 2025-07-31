@@ -15,8 +15,8 @@
 #define TEC_CYAN "\033[36m"
 #define TEC_RESET "\033[0m"
 
-#define TEC_MAX_FAILURE_MESSAGE_LEN 512
-#define TEC_TMP_STRBUF_LEN 32
+#define TEC_MAX_FAILURE_MESSAGE_LEN 1024
+#define TEC_TMP_STRBUF_LEN 128
 #define TEC_JUMP_INITIAL_CALL 0
 #define TEC_FAIL_JUMP_CODE 1
 #define TEC_SKIP_JUMP_CODE 2
@@ -24,6 +24,7 @@
 typedef void (*tec_func_t)(void);
 
 typedef struct {
+    const char* suite;
     const char* name;
     const char* file;
     tec_func_t func;
@@ -51,7 +52,8 @@ typedef struct {
     bool jump_set;
 } tec_context_t;
 
-void tec_register(const char* name, const char* file, tec_func_t func);
+void tec_register(const char* suite, const char* name, const char* file,
+                  tec_func_t func);
 
 extern tec_context_t tec_context;
 
@@ -61,6 +63,7 @@ extern tec_context_t tec_context;
          _tec_loop_once = 0, tec_context.jump_set = false)
 
 /*
+ * don't fuck with this.
  * keep TEC_FORMAT_SPEC and TEC_FORMAT_VALUE split to avoid -Wformat issues
  * I tried snprintf-style macro but, it caused bogus format warnings on the LSP
  * side, splitting format and value avoids LSP noise and keeps type safety.
@@ -210,12 +213,14 @@ extern tec_context_t tec_context;
         }                                                                      \
     } while (0)
 
-#define TEC(test_name)                                                        \
-    static void tec_##test_name(void);                                        \
-    static void __attribute__((constructor)) tec_register_##test_name(void) { \
-        tec_register(#test_name, __FILE__, tec_##test_name);                  \
-    }                                                                         \
-    static void tec_##test_name(void)
+#define TEC(suite_name, test_name)                      \
+    static void tec_##suite_name_##test_name(void);     \
+    static void __attribute__((constructor))            \
+    tec_register_##suite_name_##test_name(void) {       \
+        tec_register(#suite_name, #test_name, __FILE__, \
+                     tec_##suite_name_##test_name);     \
+    }                                                   \
+    static void tec_##suite_name_##test_name(void)
 
 #define TEC_POST_FAIL()                                           \
     do {                                                          \
@@ -244,7 +249,18 @@ extern tec_context_t tec_context;
 #ifdef TEC_IMPLEMENTATION
 tec_context_t tec_context = {0};
 
-void tec_register(const char* name, const char* file, tec_func_t func) {
+int tec_compare_entries(const void* a, const void* b) {
+    tec_entry_t* entry_a = (tec_entry_t*)a;
+    tec_entry_t* entry_b = (tec_entry_t*)b;
+    int suite_cmp = strcmp(entry_a->suite, entry_b->suite);
+    if (suite_cmp != 0) {
+        return suite_cmp;
+    }
+    return strcmp(entry_a->name, entry_b->name);
+}
+
+void tec_register(const char* suite, const char* name, const char* file,
+                  tec_func_t func) {
     if (!name || !file || !func) {
         fprintf(stderr,
                 TEC_RED "Error: NULL argument to tec_register\n" TEC_RESET);
@@ -271,6 +287,7 @@ void tec_register(const char* name, const char* file, tec_func_t func) {
         tec_context.registry.entries = new_registry;
     }
 
+    tec_context.registry.entries[tec_context.registry.tec_count].suite = suite;
     tec_context.registry.entries[tec_context.registry.tec_count].name = name;
     tec_context.registry.entries[tec_context.registry.tec_count].file = file;
     tec_context.registry.entries[tec_context.registry.tec_count].func = func;
@@ -299,24 +316,25 @@ int tec_run_all(void) {
     printf("         C Test Runner          \n");
     printf("================================" TEC_RESET "\n\n");
 
+    qsort(tec_context.registry.entries, tec_context.registry.tec_count,
+          sizeof(tec_entry_t), tec_compare_entries);
+
     int result = 0;
-    const char* current_file = NULL;
+    const char* current_suite = NULL;
 
     for (size_t i = 0; i < tec_context.registry.tec_count; ++i) {
         tec_entry_t* test = &tec_context.registry.entries[i];
-        if (current_file == NULL || strcmp(current_file, test->file) != 0) {
-            current_file = test->file;
-            const char* display_name = current_file;
-            const char* prefix_to_strip = "tests/";
-            const size_t prefix_to_strip_len = strlen(prefix_to_strip);
-
-            if (strncmp(display_name, prefix_to_strip, prefix_to_strip_len) ==
-                0) {
-                display_name += prefix_to_strip_len;
+        if (current_suite == NULL || strcmp(current_suite, test->suite) != 0) {
+            current_suite = test->suite;
+            const char* display_name = test->file;
+            const char* prefix_to_remove = "tests/";
+            const char* found_prefix = strstr(display_name, prefix_to_remove);
+            if (found_prefix != NULL) {
+                display_name = found_prefix + strlen(prefix_to_remove);
             }
-
             if (i > 0) printf("\n");
-            printf(TEC_MAGENTA "%s" TEC_RESET "\n", display_name);
+            printf(TEC_MAGENTA "SUITE: %s" TEC_RESET " (%s)\n", current_suite,
+                   display_name);
         }
 
         tec_context.current_passed = 0;
