@@ -12,6 +12,7 @@ your way so you can just write tests. Zero-setup unit testing is just one `#incl
 - [In Action](#in-action)
 - [Quick Start](#quick-start)
 - [Features](#features)
+- [Test Suites](#test-suites)
 - [Assertion API](#assertion-api)
 - [Advanced Usage](#advanced-usage)
 - [Example Project & Makefile](#example-project--makefile)
@@ -32,12 +33,12 @@ your way so you can just write tests. Zero-setup unit testing is just one `#incl
 #define TEC_IMPLEMENTATION
 #include "tec.h"          // The testing library
 
-TEC(test_addition) {
+TEC(arithmetic, test_addition) {
     TEC_ASSERT_EQ(2 + 2, 4);
     TEC_ASSERT_NE(2 + 2, 5);
 }
 
-TEC(test_strings) {
+TEC(string_test, test_strings) {
     const char* str = "hello";
     TEC_ASSERT_STR_EQ(str, "hello");
 }
@@ -54,8 +55,10 @@ $gcc my_test.c -o test_runner && ./test_runner
          C Test Runner
 ================================
 
-my_test.c
+SUITE: arithmetic (my_test.c)
   ✓ test_addition
+
+SUITE: string_test (my_test.c)
   ✓ test_strings
 
 ================================
@@ -79,6 +82,23 @@ That's it. There is no step 5.
 - **Simple Assertions**: A core set of ASSERT macros that cover the essentials.
 - **Automatic Test Registration**: The `TEC()` macro registers tests. `TEC_MAIN()` runs them.
 - **Dynamic Test Capacity**: The test registry grows as needed, so you don't have to worry about a predefined test limit.
+
+---
+## Test Suites
+
+Tests are defined and grouped into suites using the `TEC(suite_name, test_name)` macro.
+
+- `suite_name`: The name of the test group. All tests with the same suite_name will be grouped together in the output.
+- `test_name`: The unique name of the individual test case.
+
+```c
+// All these tests will appear under the "math" suite in the output.
+TEC(math, test_addition) { /* ... */ }
+TEC(math, test_multiplication) { /* ... */ }
+
+// This test will start a new "memory" suite.
+TEC(memory, test_allocation) { /* ... */ }
+```
 
 ---
 
@@ -105,7 +125,7 @@ You can skip a test by placing `TEC_SKIP("reason")` at the beginning of its body
 This is useful for temporarily disabling tests for features that are not yet implemented.
 
 ```c
-TEC(test_new_feature) {
+TEC(feature_x, test_new_functionality) {
     TEC_SKIP("This feature isn't ready for testing yet.");
     // This code will not be executed.
     TEC_ASSERT(false);
@@ -121,7 +141,7 @@ If an assertion inside the block fails, execution will "jump" to the end of the
 block, allowing the code that follows it to run. The test will still be marked as a failure.
 
 ```c
-TEC(test_with_cleanup) {
+TEC(cleanup, test_with_cleanup) {
     char* buffer = malloc(100);
     TEC_ASSERT_NOT_NULL(buffer); // A failure here would skip the free() call.
 
@@ -180,12 +200,12 @@ TEC_MAIN()
 #include "calculator.h"
 #include "../tec.h"
 
-TEC(test_add) {
+TEC(calculator, test_add) {
     TEC_ASSERT_EQ(add(2, 3), 5);
     TEC_ASSERT_EQ(add(-1, 1), 0);
 }
 
-TEC(test_multiply) {
+TEC(calculator, test_multiply) {
     TEC_ASSERT_EQ(multiply(3, 4), 12);
     TEC_ASSERT_EQ(multiply(0, 100), 0);
 }
@@ -212,7 +232,7 @@ Running tests...
          C Test Runner
 ================================
 
-calculator.c
+SUITE: calculator (calculator.c)
   ✓ test_add
   ✓ test_multiply
 
