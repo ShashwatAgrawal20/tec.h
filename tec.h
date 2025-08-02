@@ -34,10 +34,11 @@ typedef struct {
     jmp_buf jump_buffer;
     char failure_message[TEC_MAX_FAILURE_MESSAGE_LEN];
     struct {
-        size_t total_tests;
+        size_t ran_tests;
         size_t passed_tests;
         size_t failed_tests;
         size_t skipped_tests;
+        size_t filtered_tests;
         size_t total_assertions;
         size_t passed_assertions;
         size_t failed_assertions;
@@ -47,6 +48,10 @@ typedef struct {
         size_t tec_count;
         size_t tec_capacity;
     } registry;
+    struct {
+        char** filters;
+        size_t filter_count;
+    } options;
     size_t current_passed;
     size_t current_failed;
     bool jump_set;
@@ -261,7 +266,7 @@ int tec_compare_entries(const void* a, const void* b) {
 
 void tec_register(const char* suite, const char* name, const char* file,
                   tec_func_t func) {
-    if (!name || !file || !func) {
+    if (!suite || !name || !file || !func) {
         fprintf(stderr,
                 TEC_RED "Error: NULL argument to tec_register\n" TEC_RESET);
         return;
@@ -272,9 +277,9 @@ void tec_register(const char* suite, const char* name, const char* file,
             tec_context.registry.tec_capacity == 0
                 ? 8
                 : tec_context.registry.tec_capacity * 2;
-        tec_entry_t* new_registry =
-            realloc(tec_context.registry.entries,
-                    tec_context.registry.tec_capacity * sizeof(tec_entry_t));
+        tec_entry_t* new_registry = (tec_entry_t*)realloc(
+            tec_context.registry.entries,
+            tec_context.registry.tec_capacity * sizeof(tec_entry_t));
 
         if (new_registry == NULL) {
             fprintf(stderr, TEC_RED
@@ -311,7 +316,71 @@ void tec_process_test_result(int jump_val, const tec_entry_t* test) {
     }
 }
 
-int tec_run_all(void) {
+void tec_print_usage(const char* prog_name) {
+    printf("Usage: %s [options]\n", prog_name);
+    printf("Options:\n");
+    printf(
+        "  -f, --filter <pattern>  Run tests matching pattern. "
+        "Can be used multiple times.\n"
+        "                          Pattern is matched against "
+        "'suite_name.test_name'.\n");
+    printf("  -h, --help              Display this help message.\n");
+}
+
+int tec_parse_args(int argc, char** argv) {
+    if (argc < 2) {
+        return 0;
+    }
+    tec_context.options.filters = (char**)calloc(argc, sizeof(char*));
+    if (tec_context.options.filters == NULL) {
+        fprintf(stderr,
+                TEC_RED "Failed to allocate memory for filters\n" TEC_RESET);
+        return 1;
+    }
+
+    for (int i = 1; i < argc; ++i) {
+        if ((strcmp(argv[i], "-f") == 0) ||
+            (strcmp(argv[i], "--filter") == 0)) {
+            if (argc > ++i) {
+                tec_context.options
+                    .filters[tec_context.options.filter_count++] = argv[i];
+            } else {
+                fprintf(
+                    stderr, TEC_RED
+                    "Error: Filter option requires an argument.\n" TEC_RESET);
+                return 1;
+            }
+        } else if (strcmp(argv[i], "-h") == 0 ||
+                   strcmp(argv[i], "--help") == 0) {
+            tec_print_usage(argv[0]);
+            return 1;
+        } else {
+            fprintf(stderr, TEC_RED "Error: Unknown option '%s'\n" TEC_RESET,
+                    argv[i]);
+            tec_print_usage(argv[0]);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+bool tec_should_run(const tec_entry_t* test) {
+    char full_name[TEC_TMP_STRBUF_LEN];
+    snprintf(full_name, sizeof(full_name), "%s.%s", test->suite, test->name);
+
+    for (size_t i = 0; i < tec_context.options.filter_count; ++i) {
+        if (strstr(full_name, tec_context.options.filters[i]) != NULL) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+int tec_run_all(int argc, char** argv) {
+    int result = 0;
+    result = tec_parse_args(argc, argv);
+    if (result) goto cleanup;
     printf(TEC_BLUE "================================\n");
     printf("         C Test Runner          \n");
     printf("================================" TEC_RESET "\n\n");
@@ -319,28 +388,32 @@ int tec_run_all(void) {
     qsort(tec_context.registry.entries, tec_context.registry.tec_count,
           sizeof(tec_entry_t), tec_compare_entries);
 
-    int result = 0;
     const char* current_suite = NULL;
 
     for (size_t i = 0; i < tec_context.registry.tec_count; ++i) {
         tec_entry_t* test = &tec_context.registry.entries[i];
+
+        if (tec_context.options.filter_count != 0 && !tec_should_run(test)) {
+            tec_context.stats.filtered_tests++;
+            continue;
+        }
+
+        bool suite_printed = false;
         if (current_suite == NULL || strcmp(current_suite, test->suite) != 0) {
             current_suite = test->suite;
-            const char* display_name = test->file;
-            const char* prefix_to_remove = "tests/";
-            const char* found_prefix = strstr(display_name, prefix_to_remove);
-            if (found_prefix != NULL) {
-                display_name = found_prefix + strlen(prefix_to_remove);
-            }
-            if (i > 0) printf("\n");
+            const char* display_name = strrchr(test->file, '/');
+            display_name = display_name ? display_name + 1 : test->file;
+
+            if (suite_printed) printf("\n");
             printf(TEC_MAGENTA "SUITE: %s" TEC_RESET " (%s)\n", current_suite,
                    display_name);
+            suite_printed = true;
         }
 
         tec_context.current_passed = 0;
         tec_context.current_failed = 0;
         tec_context.failure_message[0] = '\0';
-        tec_context.stats.total_tests++;
+        tec_context.stats.ran_tests++;
 
         tec_context.jump_set = true;
         int jump_val = setjmp(tec_context.jump_buffer);
@@ -355,8 +428,11 @@ int tec_run_all(void) {
     printf("\n" TEC_BLUE "================================" TEC_RESET "\n");
     printf("Tests: %zu total, " TEC_GREEN "%zu passed" TEC_RESET ", " TEC_RED
            "%zu failed" TEC_RESET ", " TEC_YELLOW "%zu skipped" TEC_RESET "\n",
-           tec_context.stats.total_tests, tec_context.stats.passed_tests,
+           tec_context.stats.ran_tests, tec_context.stats.passed_tests,
            tec_context.stats.failed_tests, tec_context.stats.skipped_tests);
+    printf("Tests: %zu ran, %zu filtered, %zu total\n",
+           tec_context.stats.ran_tests, tec_context.stats.filtered_tests,
+           tec_context.registry.tec_count);
     printf("Assertions: %zu total, " TEC_GREEN "%zu passed" TEC_RESET
            ", " TEC_RED "%zu failed" TEC_RESET "\n",
            tec_context.stats.total_assertions,
@@ -376,15 +452,15 @@ int tec_run_all(void) {
         result = 0;
     }
 
+cleanup:
     free(tec_context.registry.entries);
-    tec_context.registry.entries = NULL;
-    tec_context.registry.tec_count = 0;
-    tec_context.registry.tec_capacity = 0;
+    free(tec_context.options.filters);
+    memset(&tec_context, 0, sizeof(tec_context_t));
     return result;
 }
 
 #define TEC_MAIN() \
-    int main(void) { return tec_run_all(); }
+    int main(int argc, char** argv) { return tec_run_all(argc, argv); }
 
 #endif  // TEC_IMPLEMENTATION
 #endif  // TEC_H
