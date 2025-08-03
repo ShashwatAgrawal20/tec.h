@@ -383,7 +383,7 @@ int tec_run_all(int argc, char** argv) {
     if (result) goto cleanup;
     printf(TEC_BLUE "================================\n");
     printf("         C Test Runner          \n");
-    printf("================================" TEC_RESET "\n\n");
+    printf("================================" TEC_RESET "\n");
 
     qsort(tec_context.registry.entries, tec_context.registry.tec_count,
           sizeof(tec_entry_t), tec_compare_entries);
@@ -398,16 +398,13 @@ int tec_run_all(int argc, char** argv) {
             continue;
         }
 
-        bool suite_printed = false;
         if (current_suite == NULL || strcmp(current_suite, test->suite) != 0) {
             current_suite = test->suite;
             const char* display_name = strrchr(test->file, '/');
             display_name = display_name ? display_name + 1 : test->file;
 
-            if (suite_printed) printf("\n");
-            printf(TEC_MAGENTA "SUITE: %s" TEC_RESET " (%s)\n", current_suite,
+            printf(TEC_MAGENTA "\nSUITE: %s" TEC_RESET " (%s)\n", current_suite,
                    display_name);
-            suite_printed = true;
         }
 
         tec_context.current_passed = 0;
@@ -426,18 +423,18 @@ int tec_run_all(int argc, char** argv) {
     }
 
     printf("\n" TEC_BLUE "================================" TEC_RESET "\n");
-    printf("Tests: %zu total, " TEC_GREEN "%zu passed" TEC_RESET ", " TEC_RED
-           "%zu failed" TEC_RESET ", " TEC_YELLOW "%zu skipped" TEC_RESET "\n",
-           tec_context.stats.ran_tests, tec_context.stats.passed_tests,
-           tec_context.stats.failed_tests, tec_context.stats.skipped_tests);
-    printf("Tests: %zu ran, %zu filtered, %zu total\n",
-           tec_context.stats.ran_tests, tec_context.stats.filtered_tests,
+    printf("Tests:      " TEC_GREEN "%zu passed" TEC_RESET ", " TEC_RED
+           "%zu failed" TEC_RESET ", " TEC_YELLOW "%zu skipped" TEC_RESET
+           ", " TEC_CYAN "%zu filtered" TEC_RESET " (%zu total)\n",
+           tec_context.stats.passed_tests, tec_context.stats.failed_tests,
+           tec_context.stats.skipped_tests, tec_context.stats.filtered_tests,
            tec_context.registry.tec_count);
-    printf("Assertions: %zu total, " TEC_GREEN "%zu passed" TEC_RESET
-           ", " TEC_RED "%zu failed" TEC_RESET "\n",
-           tec_context.stats.total_assertions,
+
+    printf("Assertions: " TEC_GREEN "%zu passed" TEC_RESET ", " TEC_RED
+           "%zu failed" TEC_RESET " (%zu total)\n",
            tec_context.stats.passed_assertions,
-           tec_context.stats.failed_assertions);
+           tec_context.stats.failed_assertions,
+           tec_context.stats.total_assertions);
 
     if (tec_context.stats.failed_tests == 0 &&
         tec_context.stats.skipped_tests == 0) {

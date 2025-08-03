@@ -62,8 +62,8 @@ SUITE: string_test (my_test.c)
   ✓ test_strings
 
 ================================
-Tests: 2 total, 2 passed, 0 failed, 0 skipped
-Assertions: 3 total, 3 passed, 0 failed
+Tests:      2 passed, 0 failed, 0 skipped, 0 filtered (2 total)
+Assertions: 3 passed, 0 failed (3 total)
 
 All tests passed!
 ```
@@ -119,6 +119,19 @@ The library provides a straightforward set of assertions. On failure, it prints 
 ---
 
 ## Advanced Usage
+
+### Filtering Tests
+You can selectively run tests by using `-f` or `--filter` followed by a substring pattern.
+The filter is matched against the full test name in the format: `suite_name.test_name`
+
+```bash
+./test_runner -f math           # runs tests like math.add, math.subtract, etc.
+./test_runner --filter alloc    # matches memory.alloc, buffer.alloc, etc.
+./test_runner -f division -f io # runs tests matching "division" OR "io"
+```
+- You can provide multiple filters; tests matching any of them will be run.
+- Filtering is **case-sensitive** and uses simple **substring** logic (not regex).
+- If no filters are given, **all registered tests** will be executed.
 
 ### Skipping Tests
 You can skip a test by placing `TEC_SKIP("reason")` at the beginning of its body.
@@ -237,8 +250,8 @@ SUITE: calculator (calculator.c)
   ✓ test_multiply
 
 ================================
-Tests: 2 total, 2 passed, 0 failed, 0 skipped
-Assertions: 4 total, 4 passed, 0 failed
+Tests:      2 passed, 0 failed, 0 skipped, 0 filtered (2 total)
+Assertions: 4 passed, 0 failed (4 total)
 
 All tests passed!
 ```
