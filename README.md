@@ -108,12 +108,16 @@ The library provides a straightforward set of assertions. On failure, it prints 
 
 | Macro                      | Description                                | Example Usage                            |
 |----------------------------|--------------------------------------------|------------------------------------------|
-| `TEC_ASSERT(expression)`   | Asserts that `expression` is true.         | `TEC_ASSERT(x > 0);`                     |
+| `TEC_ASSERT(expression)`   | Asserts that `expression` is true.         | `TEC_ASSERT(count > 0);`                 |
 | `TEC_ASSERT_EQ(a, b)`      | Asserts that `a == b`.                     | `TEC_ASSERT_EQ(result, 42);`             |
-| `TEC_ASSERT_NE(a, b)`      | Asserts that `a != b`.                     | `TEC_ASSERT_NE(a, b);`                   |
-| `TEC_ASSERT_STR_EQ(a, b)`  | Asserts that two strings are equal.        | `TEC_ASSERT_STR_EQ("foo", bar);`         |
-| `TEC_ASSERT_NULL(ptr)`     | Asserts that pointer is `NULL`.            | `TEC_ASSERT_NULL(ptr);`                  |
-| `TEC_ASSERT_NOT_NULL(ptr)` | Asserts that pointer is not `NULL`.        | `TEC_ASSERT_NOT_NULL(ptr);`              |
+| `TEC_ASSERT_NE(a, b)`      | Asserts that `a != b`.                     | `TEC_ASSERT_NE(id1, id2);`               |
+| `TEC_ASSERT_STR_EQ(a, b)`  | Asserts that two strings are equal.        | `TEC_ASSERT_STR_EQ(msg, "OK");`          |
+| `TEC_ASSERT_NULL(ptr)`     | Asserts that pointer is `NULL`.            | `TEC_ASSERT_NULL(response);`             |
+| `TEC_ASSERT_NOT_NULL(ptr)` | Asserts that pointer is not `NULL`.        | `TEC_ASSERT_NOT_NULL(data);`             |
+| `TEC_ASSERT_GT(a, b)`      | Asserts that `a > b`.                      | `TEC_ASSERT_GT(score, min_score);`       |
+| `TEC_ASSERT_GE(a, b)`      | Asserts that `a >= b`.                     | `TEC_ASSERT_GE(level, threshold);`       |
+| `TEC_ASSERT_LT(a, b)`      | Asserts that `a < b`.                      | `TEC_ASSERT_LT(temp, limit);`            |
+| `TEC_ASSERT_LE(a, b)`      | Asserts that `a <= b`.                     | `TEC_ASSERT_LE(retries, max_retries);`   |
 | `TEC_SKIP(reason)`         | Skips the current test and reports reason. | `TEC_SKIP("Not implemented yet.");`      |
 
 ---

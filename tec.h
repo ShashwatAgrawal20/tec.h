@@ -16,7 +16,10 @@
 #define TEC_RESET "\033[0m"
 
 #define TEC_MAX_FAILURE_MESSAGE_LEN 1024
-#define TEC_TMP_STRBUF_LEN 128
+#define TEC_TMP_STRBUF_LEN 256
+#define TEC_FMT_SLOTS 2
+#define TEC_FMT_SLOT_SIZE TEC_TMP_STRBUF_LEN
+
 #define TEC_JUMP_INITIAL_CALL 0
 #define TEC_FAIL_JUMP_CODE 1
 #define TEC_SKIP_JUMP_CODE 2
@@ -33,6 +36,7 @@ typedef struct {
 typedef struct {
     jmp_buf jump_buffer;
     char failure_message[TEC_MAX_FAILURE_MESSAGE_LEN];
+    char format_bufs[TEC_FMT_SLOTS][TEC_FMT_SLOT_SIZE];
     struct {
         size_t ran_tests;
         size_t passed_tests;
@@ -61,6 +65,11 @@ void tec_register(const char* suite, const char* name, const char* file,
                   tec_func_t func);
 
 extern tec_context_t tec_context;
+
+#define TEC_FORMAT_VALUE_PAIR(x) TEC_FORMAT_SPEC(x), TEC_FORMAT_VALUE(x)
+
+#define TEC_FMT(x, buf) \
+    snprintf((buf), TEC_TMP_STRBUF_LEN, TEC_FORMAT_VALUE_PAIR(x))
 
 #define TEC_TRY_BLOCK                                            \
     for (int _tec_loop_once = (tec_context.jump_set = true, 1);  \
@@ -128,16 +137,13 @@ extern tec_context_t tec_context;
         __auto_type _a = a;                                                    \
         __auto_type _b = b;                                                    \
         if ((_a) != (_b)) {                                                    \
-            char a_str[TEC_TMP_STRBUF_LEN];                                    \
-            char b_str[TEC_TMP_STRBUF_LEN];                                    \
-            snprintf(a_str, sizeof(a_str), TEC_FORMAT_SPEC(_a),                \
-                     TEC_FORMAT_VALUE(_a));                                    \
-            snprintf(b_str, sizeof(b_str), TEC_FORMAT_SPEC(_b),                \
-                     TEC_FORMAT_VALUE(_b));                                    \
+            TEC_FMT(_a, tec_context.format_bufs[0]);                           \
+            TEC_FMT(_b, tec_context.format_bufs[1]);                           \
             snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
                      "    " TEC_RED "✗" TEC_RESET                              \
                      " Expected %s == %s, got %s != %s (line %d)\n",           \
-                     #a, #b, a_str, b_str, __LINE__);                          \
+                     #a, #b, tec_context.format_bufs[0],                       \
+                     tec_context.format_bufs[1], __LINE__);                    \
             TEC_POST_FAIL();                                                   \
         } else {                                                               \
             TEC_POST_PASS();                                                   \
@@ -150,13 +156,11 @@ extern tec_context_t tec_context;
         __auto_type _b = b;                                                    \
         tec_context.stats.total_assertions++;                                  \
         if ((_a) == (_b)) {                                                    \
-            char a_str[TEC_TMP_STRBUF_LEN];                                    \
-            snprintf(a_str, sizeof(a_str), TEC_FORMAT_SPEC(_a),                \
-                     TEC_FORMAT_VALUE(_a));                                    \
+            TEC_FMT(_a, tec_context.format_bufs[0]);                           \
             snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
                      "    " TEC_RED "✗" TEC_RESET                              \
                      " Expected %s != %s, but both are %s (line %d)\n",        \
-                     #a, #b, a_str, __LINE__);                                 \
+                     #a, #b, tec_context.format_bufs[0], __LINE__);            \
             TEC_POST_FAIL();                                                   \
         } else {                                                               \
             TEC_POST_PASS();                                                   \
@@ -212,6 +216,31 @@ extern tec_context_t tec_context;
                      "    " TEC_RED "✗" TEC_RESET                              \
                      " Expected %s to not be NULL (line %d)\n",                \
                      #ptr, __LINE__);                                          \
+            TEC_POST_FAIL();                                                   \
+        } else {                                                               \
+            TEC_POST_PASS();                                                   \
+        }                                                                      \
+    } while (0)
+
+#define TEC_ASSERT_GT(a, b) _TEC_ASSERT_OP(a, b, >)
+#define TEC_ASSERT_GE(a, b) _TEC_ASSERT_OP(a, b, >=)
+#define TEC_ASSERT_LT(a, b) _TEC_ASSERT_OP(a, b, <)
+#define TEC_ASSERT_LE(a, b) _TEC_ASSERT_OP(a, b, <=)
+
+#define _TEC_ASSERT_OP(a, b, op)                                               \
+    do {                                                                       \
+        tec_context.stats.total_assertions++;                                  \
+        __auto_type _a = a;                                                    \
+        __auto_type _b = b;                                                    \
+        if (!(_a op _b)) {                                                     \
+            TEC_FMT(_a, tec_context.format_bufs[0]);                           \
+            TEC_FMT(_b, tec_context.format_bufs[1]);                           \
+            snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
+                     "    " TEC_RED "✗" TEC_RESET " Expected %s " #op          \
+                     " %s, got %s %s %s (line %d)\n",                          \
+                     #a, #b, tec_context.format_bufs[0],                       \
+                     #op[0] == '>' ? "<=" : ">=", tec_context.format_bufs[1],  \
+                     __LINE__);                                                \
             TEC_POST_FAIL();                                                   \
         } else {                                                               \
             TEC_POST_PASS();                                                   \

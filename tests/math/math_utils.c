@@ -21,6 +21,17 @@ TEC(framework, teardown_with_cleanup) {
     printf("Teardown complete: memory freed\n");
 }
 
+TEC(numerical, test_comparisons) {
+    int a = 69;
+    int b = 420;
+    // TEC_ASSERT_GT(a, b); /* fails */
+    // TEC_ASSERT_GE(69, 420); /* fails */
+    TEC_ASSERT_GT(b, a);
+    TEC_ASSERT_LT(-5, 0);
+    TEC_ASSERT_GE(100, 100);
+    TEC_ASSERT_LE(-99, -99);
+}
+
 TEC(mathutils, addition) {
     const int five = 5;
     TEC_ASSERT_EQ(add(2, 3), five);
