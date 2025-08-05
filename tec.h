@@ -20,9 +20,7 @@
 #define TEC_FMT_SLOTS 2
 #define TEC_FMT_SLOT_SIZE TEC_TMP_STRBUF_LEN
 
-#define TEC_JUMP_INITIAL_CALL 0
-#define TEC_FAIL_JUMP_CODE 1
-#define TEC_SKIP_JUMP_CODE 2
+typedef enum { TEC_INITIAL, TEC_FAIL, TEC_SKIP } JUMP_CODES;
 
 typedef void (*tec_func_t)(void);
 
@@ -256,12 +254,11 @@ extern tec_context_t tec_context;
     }                                                   \
     static void tec_##suite_name_##test_name(void)
 
-#define TEC_POST_FAIL()                                           \
-    do {                                                          \
-        tec_context.current_failed++;                             \
-        tec_context.stats.failed_assertions++;                    \
-        if (tec_context.jump_set)                                 \
-            longjmp(tec_context.jump_buffer, TEC_FAIL_JUMP_CODE); \
+#define TEC_POST_FAIL()                                                       \
+    do {                                                                      \
+        tec_context.current_failed++;                                         \
+        tec_context.stats.failed_assertions++;                                \
+        if (tec_context.jump_set) longjmp(tec_context.jump_buffer, TEC_FAIL); \
     } while (0);
 
 #define TEC_POST_PASS()                        \
@@ -270,14 +267,13 @@ extern tec_context_t tec_context;
         tec_context.stats.passed_assertions++; \
     } while (0);
 
-#define TEC_SKIP(reason)                                                     \
-    do {                                                                     \
-        const char* _reason = (reason);                                      \
-        snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN,   \
-                 "    " TEC_YELLOW "»" TEC_RESET " Skipped: %s (line %d)\n", \
-                 _reason, __LINE__);                                         \
-        if (tec_context.jump_set)                                            \
-            longjmp(tec_context.jump_buffer, TEC_SKIP_JUMP_CODE);            \
+#define TEC_SKIP(reason)                                                      \
+    do {                                                                      \
+        const char* _reason = (reason);                                       \
+        snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN,    \
+                 "    " TEC_YELLOW "»" TEC_RESET " Skipped: %s (line %d)\n",  \
+                 _reason, __LINE__);                                          \
+        if (tec_context.jump_set) longjmp(tec_context.jump_buffer, TEC_SKIP); \
     } while (0)
 
 #ifdef TEC_IMPLEMENTATION
@@ -328,13 +324,12 @@ void tec_register(const char* suite, const char* name, const char* file,
     tec_context.registry.tec_count++;
 }
 
-void tec_process_test_result(int jump_val, const tec_entry_t* test) {
-    if (jump_val == TEC_SKIP_JUMP_CODE) {
+void tec_process_test_result(JUMP_CODES jump_val, const tec_entry_t* test) {
+    if (jump_val == TEC_SKIP) {
         tec_context.stats.skipped_tests++;
         printf("  " TEC_YELLOW "»" TEC_RESET " %s\n", test->name);
         printf("%s", tec_context.failure_message);
-    } else if (jump_val == TEC_FAIL_JUMP_CODE ||
-               tec_context.current_failed > 0) {
+    } else if (jump_val == TEC_FAIL || tec_context.current_failed > 0) {
         tec_context.stats.failed_tests++;
         printf("  " TEC_RED "✗" TEC_RESET " %s - %zu assertion(s) failed\n",
                test->name, tec_context.current_failed);
@@ -429,8 +424,14 @@ int tec_run_all(int argc, char** argv) {
 
         if (current_suite == NULL || strcmp(current_suite, test->suite) != 0) {
             current_suite = test->suite;
-            const char* display_name = strrchr(test->file, '/');
-            display_name = display_name ? display_name + 1 : test->file;
+            const char* display_name = strstr(test->file, "tests/");
+
+            if (display_name) {
+                display_name = display_name + 6;
+            } else {
+                display_name = strrchr(test->file, '/');
+                display_name = display_name ? display_name + 1 : test->file;
+            }
 
             printf(TEC_MAGENTA "\nSUITE: %s" TEC_RESET " (%s)\n", current_suite,
                    display_name);
@@ -443,7 +444,7 @@ int tec_run_all(int argc, char** argv) {
 
         tec_context.jump_set = true;
         int jump_val = setjmp(tec_context.jump_buffer);
-        if (jump_val == TEC_JUMP_INITIAL_CALL) {
+        if (jump_val == TEC_INITIAL) {
             test->func();
         }
         tec_context.jump_set = false;
