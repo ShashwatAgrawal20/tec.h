@@ -29,6 +29,7 @@ typedef struct {
     const char* name;
     const char* file;
     tec_func_t func;
+    bool xfail;
 } tec_entry_t;
 
 typedef struct {
@@ -60,7 +61,7 @@ typedef struct {
 } tec_context_t;
 
 void tec_register(const char* suite, const char* name, const char* file,
-                  tec_func_t func);
+                  tec_func_t func, bool xfail);
 
 extern tec_context_t tec_context;
 
@@ -245,13 +246,22 @@ extern tec_context_t tec_context;
         }                                                                      \
     } while (0)
 
-#define TEC(suite_name, test_name)                      \
-    static void tec_##suite_name_##test_name(void);     \
-    static void __attribute__((constructor))            \
-    tec_register_##suite_name_##test_name(void) {       \
-        tec_register(#suite_name, #test_name, __FILE__, \
-                     tec_##suite_name_##test_name);     \
-    }                                                   \
+#define TEC(suite_name, test_name)                         \
+    static void tec_##suite_name_##test_name(void);        \
+    static void __attribute__((constructor))               \
+    tec_register_##suite_name_##test_name(void) {          \
+        tec_register(#suite_name, #test_name, __FILE__,    \
+                     tec_##suite_name_##test_name, false); \
+    }                                                      \
+    static void tec_##suite_name_##test_name(void)
+
+#define TEC_XFAIL(suite_name, test_name)                  \
+    static void tec_##suite_name_##test_name(void);       \
+    static void __attribute__((constructor))              \
+    tec_register_##suite_name_##test_name(void) {         \
+        tec_register(#suite_name, #test_name, __FILE__,   \
+                     tec_##suite_name_##test_name, true); \
+    }                                                     \
     static void tec_##suite_name_##test_name(void)
 
 #define TEC_POST_FAIL()                                                       \
@@ -290,7 +300,7 @@ int tec_compare_entries(const void* a, const void* b) {
 }
 
 void tec_register(const char* suite, const char* name, const char* file,
-                  tec_func_t func) {
+                  tec_func_t func, bool xfail) {
     if (!suite || !name || !file || !func) {
         fprintf(stderr,
                 TEC_RED "Error: NULL argument to tec_register\n" TEC_RESET);
@@ -321,22 +331,38 @@ void tec_register(const char* suite, const char* name, const char* file,
     tec_context.registry.entries[tec_context.registry.tec_count].name = name;
     tec_context.registry.entries[tec_context.registry.tec_count].file = file;
     tec_context.registry.entries[tec_context.registry.tec_count].func = func;
+    tec_context.registry.entries[tec_context.registry.tec_count].xfail = xfail;
     tec_context.registry.tec_count++;
 }
 
 void tec_process_test_result(JUMP_CODES jump_val, const tec_entry_t* test) {
+    bool has_failed = (jump_val == TEC_FAIL || tec_context.current_failed > 0);
     if (jump_val == TEC_SKIP) {
         tec_context.stats.skipped_tests++;
         printf("  " TEC_YELLOW "»" TEC_RESET " %s\n", test->name);
         printf("%s", tec_context.failure_message);
-    } else if (jump_val == TEC_FAIL || tec_context.current_failed > 0) {
-        tec_context.stats.failed_tests++;
-        printf("  " TEC_RED "✗" TEC_RESET " %s - %zu assertion(s) failed\n",
-               test->name, tec_context.current_failed);
-        printf("%s", tec_context.failure_message);
+        return;
+    }
+    if (test->xfail) {
+        if (has_failed) {
+            tec_context.stats.passed_tests++;
+            printf("  " TEC_GREEN "✓" TEC_RESET " %s (expected failure)\n",
+                   test->name);
+        } else {
+            tec_context.stats.failed_tests++;
+            printf("  " TEC_RED "✗" TEC_RESET " %s (unexpected success)\n",
+                   test->name);
+        }
     } else {
-        tec_context.stats.passed_tests++;
-        printf("  " TEC_GREEN "✓" TEC_RESET " %s\n", test->name);
+        if (has_failed) {
+            tec_context.stats.failed_tests++;
+            printf("  " TEC_RED "✗" TEC_RESET " %s - %zu assertion(s) failed\n",
+                   test->name, tec_context.current_failed);
+            printf("%s", tec_context.failure_message);
+        } else {
+            tec_context.stats.passed_tests++;
+            printf("  " TEC_GREEN "✓" TEC_RESET " %s\n", test->name);
+        }
     }
 }
 

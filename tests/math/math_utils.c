@@ -2,8 +2,8 @@
 
 #include "../../tec.h"
 
-TEC(framework, teardown_with_cleanup) {
-    TEC_SKIP("Fails intentionally to demonstrate try/teardown.");
+TEC_XFAIL(framework, teardown_with_cleanup) {
+    // TEC_SKIP("Fails intentionally to demonstrate try/teardown.");
     int *value = NULL;
 
     // TRY BLOCK: Contains setup and assertions.
@@ -18,7 +18,7 @@ TEC(framework, teardown_with_cleanup) {
     // FINALLY BLOCK: This code is guaranteed to run.
     // No keyword is needed; it's simply the code that follows the try block.
     free(value);
-    printf("Teardown complete: memory freed\n");
+    // printf("Teardown complete: memory freed\n");
 }
 
 TEC(numerical, test_comparisons) {
