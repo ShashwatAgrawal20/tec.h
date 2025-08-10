@@ -1,6 +1,7 @@
 #ifndef TEC_H
 #define TEC_H
 
+#include <float.h>
 #include <setjmp.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -66,6 +67,7 @@ void tec_register(const char* suite, const char* name, const char* file,
 extern tec_context_t tec_context;
 
 #define TEC_FORMAT_VALUE_PAIR(x) TEC_FORMAT_SPEC(x), TEC_FORMAT_VALUE(x)
+#define _TEC_FABS(x) ((x) < 0.0 ? -(x) : (x))
 
 #define TEC_FMT(x, buf) \
     snprintf((buf), TEC_TMP_STRBUF_LEN, TEC_FORMAT_VALUE_PAIR(x))
@@ -166,6 +168,60 @@ extern tec_context_t tec_context;
         }                                                                      \
     } while (0)
 
+#define TEC_ASSERT_NEAR(a, b, tolerance)                                       \
+    do {                                                                       \
+        tec_context.stats.total_assertions++;                                  \
+        __auto_type _a = (a);                                                  \
+        __auto_type _b = (b);                                                  \
+        __auto_type _tol = (tolerance);                                        \
+        __auto_type _diff = _TEC_FABS((double)_a - (double)_b);                \
+        if (_diff > (double)_tol) {                                            \
+            snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
+                     "    " TEC_RED "✗" TEC_RESET                              \
+                     " Nearness assertion failed "                             \
+                     "(line %d)\n"                                             \
+                     "    " TEC_YELLOW "│" TEC_RESET                           \
+                     " Expected: %s and %s "                                   \
+                     "to be within %g\n"                                       \
+                     "    " TEC_YELLOW "│" TEC_RESET                           \
+                     " Actual:   they differ "                                 \
+                     "by %g\n",                                                \
+                     __LINE__, #a, #b, (double)_tol, _diff);                   \
+            TEC_POST_FAIL();                                                   \
+        } else {                                                               \
+            TEC_POST_PASS();                                                   \
+        }                                                                      \
+    } while (0)
+
+#define TEC_ASSERT_FLOAT_EQ(a, b)                                              \
+    do {                                                                       \
+        tec_context.stats.total_assertions++;                                  \
+        __auto_type _a = (a);                                                  \
+        __auto_type _b = (b);                                                  \
+        double _default_tol = DBL_EPSILON * 4.0;                               \
+        double _diff = _TEC_FABS((double)_a - (double)_b);                     \
+        if (_diff > _default_tol) {                                            \
+            snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
+                     "    " TEC_RED "✗" TEC_RESET                              \
+                     " Floating point equality "                               \
+                     "failed (line %d)\n"                                      \
+                     "    " TEC_YELLOW "│" TEC_RESET                           \
+                     " Expected: %s == %s\n"                                   \
+                     "    " TEC_YELLOW "│" TEC_RESET                           \
+                     " Actual:   %s (%g)\n"                                    \
+                     "    " TEC_YELLOW "│" TEC_RESET                           \
+                     "      and: %s (%g)\n"                                    \
+                     "    " TEC_YELLOW "│" TEC_RESET                           \
+                     " Difference: %g ( > "                                    \
+                     "tolerance %g)\n",                                        \
+                     __LINE__, #a, #b, #a, (double)_a, #b, (double)_b, _diff,  \
+                     _default_tol);                                            \
+            TEC_POST_FAIL();                                                   \
+        } else {                                                               \
+            TEC_POST_PASS();                                                   \
+        }                                                                      \
+    } while (0)
+
 /*
  * NOTE: If both strings are NULL, should this count as equal or not?
  * Current behavior treats it as a failure not sure if that's a feature or a
@@ -194,12 +250,12 @@ extern tec_context_t tec_context;
 #define TEC_ASSERT_NULL(ptr)                                                   \
     do {                                                                       \
         tec_context.stats.total_assertions++;                                  \
-        void* _ptr = ptr;                                                      \
+        const void* _ptr = ptr;                                                \
         if ((_ptr) != NULL) {                                                  \
             snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
                      "    " TEC_RED "✗" TEC_RESET                              \
                      " Expected %s to be NULL, got %p (line %d)\n",            \
-                     #ptr, (void*)(_ptr), __LINE__);                           \
+                     #ptr, (const void*)(_ptr), __LINE__);                     \
             TEC_POST_FAIL();                                                   \
         } else {                                                               \
             TEC_POST_PASS();                                                   \
@@ -209,7 +265,7 @@ extern tec_context_t tec_context;
 #define TEC_ASSERT_NOT_NULL(ptr)                                               \
     do {                                                                       \
         tec_context.stats.total_assertions++;                                  \
-        void* _ptr = ptr;                                                      \
+        const void* _ptr = ptr;                                                \
         if ((_ptr) == NULL) {                                                  \
             snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
                      "    " TEC_RED "✗" TEC_RESET                              \
@@ -234,12 +290,18 @@ extern tec_context_t tec_context;
         if (!(_a op _b)) {                                                     \
             TEC_FMT(_a, tec_context.format_bufs[0]);                           \
             TEC_FMT(_b, tec_context.format_bufs[1]);                           \
+            const char* _op_str = #op;                                         \
+            const char* _inv_op_str =                                          \
+                ((strcmp(_op_str, ">") == 0)    ? "<="                         \
+                 : (strcmp(_op_str, ">=") == 0) ? "<"                          \
+                 : (strcmp(_op_str, "<") == 0)  ? ">="                         \
+                 : (strcmp(_op_str, "<=") == 0) ? ">"                          \
+                                                : "???");                      \
             snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
-                     "    " TEC_RED "✗" TEC_RESET " Expected %s " #op          \
-                     " %s, got %s %s %s (line %d)\n",                          \
-                     #a, #b, tec_context.format_bufs[0],                       \
-                     #op[0] == '>' ? "<=" : ">=", tec_context.format_bufs[1],  \
-                     __LINE__);                                                \
+                     "    " TEC_RED "✗" TEC_RESET                              \
+                     " Expected %s %s %s, got %s %s %s (line %d)\n",           \
+                     #a, _op_str, #b, tec_context.format_bufs[0], _inv_op_str, \
+                     tec_context.format_bufs[1], __LINE__);                    \
             TEC_POST_FAIL();                                                   \
         } else {                                                               \
             TEC_POST_PASS();                                                   \

@@ -79,11 +79,15 @@ That's it. There is no step 5.
 
 - **Header-Only**: Just `#include "tec.h"`. No libraries to build or link.
 - **No Dependencies**: Written in standard C with common GCC/Clang extensions.
-- **Simple Assertions**: A core set of ASSERT macros that cover the essentials.
+- **Rich Assertion Set**: Comprehensive assertions including floating-point comparisons, string equality, and null checks.
 - **Automatic Test Registration**: The `TEC()` macro registers tests. `TEC_MAIN()` runs them.
 - **Dynamic Test Capacity**: The test registry grows as needed, so you don't have to worry about a predefined test limit.
+- **Expected Failures**: Mark tests that should fail with `TEC_XFAIL()` for test-driven development.
+- **Colored Output**: Clear, colored terminal output for better readability.
+- **Test Filtering**: Run specific tests using command-line filters.
 
 ---
+
 ## Test Suites
 
 Tests are defined and grouped into suites using the `TEC(suite_name, test_name)` macro.
@@ -106,19 +110,26 @@ TEC(memory, test_allocation) { /* ... */ }
 
 The library provides a straightforward set of assertions. On failure, it prints the file, line number, and the failed expression.
 
-| Macro                      | Description                                | Example Usage                            |
-|----------------------------|--------------------------------------------|------------------------------------------|
-| `TEC_ASSERT(expression)`   | Asserts that `expression` is true.         | `TEC_ASSERT(count > 0);`                 |
-| `TEC_ASSERT_EQ(a, b)`      | Asserts that `a == b`.                     | `TEC_ASSERT_EQ(result, 42);`             |
-| `TEC_ASSERT_NE(a, b)`      | Asserts that `a != b`.                     | `TEC_ASSERT_NE(id1, id2);`               |
-| `TEC_ASSERT_STR_EQ(a, b)`  | Asserts that two strings are equal.        | `TEC_ASSERT_STR_EQ(msg, "OK");`          |
-| `TEC_ASSERT_NULL(ptr)`     | Asserts that pointer is `NULL`.            | `TEC_ASSERT_NULL(response);`             |
-| `TEC_ASSERT_NOT_NULL(ptr)` | Asserts that pointer is not `NULL`.        | `TEC_ASSERT_NOT_NULL(data);`             |
-| `TEC_ASSERT_GT(a, b)`      | Asserts that `a > b`.                      | `TEC_ASSERT_GT(score, min_score);`       |
-| `TEC_ASSERT_GE(a, b)`      | Asserts that `a >= b`.                     | `TEC_ASSERT_GE(level, threshold);`       |
-| `TEC_ASSERT_LT(a, b)`      | Asserts that `a < b`.                      | `TEC_ASSERT_LT(temp, limit);`            |
-| `TEC_ASSERT_LE(a, b)`      | Asserts that `a <= b`.                     | `TEC_ASSERT_LE(retries, max_retries);`   |
-| `TEC_SKIP(reason)`         | Skips the current test and reports reason. | `TEC_SKIP("Not implemented yet.");`      |
+| Macro                         | Description                                      | Example Usage                            |
+|-------------------------------|--------------------------------------------------|------------------------------------------|
+| `TEC_ASSERT(expression)`      | Asserts that `expression` is true.               | `TEC_ASSERT(count > 0);`                 |
+| **Equality & Inequality**     |                                                  |                                          |
+| `TEC_ASSERT_EQ(a, b)`         | Asserts that `a == b`.                           | `TEC_ASSERT_EQ(result, 42);`             |
+| `TEC_ASSERT_NE(a, b)`         | Asserts that `a != b`.                           | `TEC_ASSERT_NE(id1, id2);`               |
+| **Comparison Operators**      |                                                  |                                          |
+| `TEC_ASSERT_GT(a, b)`         | Asserts that `a > b`.                            | `TEC_ASSERT_GT(score, min_score);`       |
+| `TEC_ASSERT_GE(a, b)`         | Asserts that `a >= b`.                           | `TEC_ASSERT_GE(level, threshold);`       |
+| `TEC_ASSERT_LT(a, b)`         | Asserts that `a < b`.                            | `TEC_ASSERT_LT(temp, limit);`            |
+| `TEC_ASSERT_LE(a, b)`         | Asserts that `a <= b`.                           | `TEC_ASSERT_LE(retries, max_retries);`   |
+| **Floating-Point**            |                                                  |                                          |
+| `TEC_ASSERT_FLOAT_EQ(a, b)`   | Asserts floating-point equality with tolerance.  | `TEC_ASSERT_FLOAT_EQ(result, 3.14159);`  |
+| `TEC_ASSERT_NEAR(a, b, tol)`  | Asserts values are within tolerance.             | `TEC_ASSERT_NEAR(actual, 1.0, 0.001);`   |
+| **String & Pointer**          |                                                  |                                          |
+| `TEC_ASSERT_STR_EQ(a, b)`     | Asserts that two strings are equal.              | `TEC_ASSERT_STR_EQ(msg, "OK");`          |
+| `TEC_ASSERT_NULL(ptr)`        | Asserts that pointer is `NULL`.                  | `TEC_ASSERT_NULL(response);`             |
+| `TEC_ASSERT_NOT_NULL(ptr)`    | Asserts that pointer is not `NULL`.              | `TEC_ASSERT_NOT_NULL(data);`             |
+| **Test Control**              |                                                  |                                          |
+| `TEC_SKIP(reason)`            | Skips the current test and reports reason.       | `TEC_SKIP("Not implemented yet.");`      |
 
 ---
 
@@ -146,6 +157,37 @@ TEC(feature_x, test_new_functionality) {
     TEC_SKIP("This feature isn't ready for testing yet.");
     // This code will not be executed.
     TEC_ASSERT(false);
+}
+```
+
+### Expected Failures
+For features with known bugs, you can use `TEC_XFAIL` to define a test that is
+expected to fail. The test suite will **only pass** if this test **actually fails**.
+If an XFAIL test **unexpectedly succeeds**, it will be reported as a **failure**,
+alerting you that the bug may have been fixed.
+
+```c
+TEC_XFAIL(incomplete, test_not_implemented_yet) {
+    // This test is expected to fail
+    TEC_ASSERT_EQ(unimplemented_function(), 42);
+}
+```
+
+### Floating-Point Comparisons
+Comparing floating-point numbers for exact equality is often a mistake.
+- `TEC_ASSERT_FLOAT_EQ(a, b)` is a convenient macro that compares a and b using
+a small, default tolerance `(DBL_EPSILON * 4.0)`. It's useful for most common cases.
+- `TEC_ASSERT_NEAR(a, b, tolerance)` gives you explicit control over the maximum
+allowed difference. Use this when you need a specific tolerance for your calculations.
+```c
+TEC(math, test_floating_point) {
+    double result = 0.1 + 0.2;
+
+    // Use FLOAT_EQ for automatic tolerance
+    TEC_ASSERT_FLOAT_EQ(result, 0.3);
+
+    // Or specify your own tolerance
+    TEC_ASSERT_NEAR(result, 0.3, 0.0001);
 }
 ```
 

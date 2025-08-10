@@ -32,6 +32,11 @@ TEC(numerical, test_comparisons) {
     TEC_ASSERT_LE(-99, -99);
 }
 
+TEC(float, precision) {
+    TEC_ASSERT_NEAR(0.1 + 0.2, 0.3, 3e-15);
+    TEC_ASSERT_FLOAT_EQ(0.1 + 0.2, 0.3);
+}
+
 TEC(mathutils, addition) {
     const int five = 5;
     TEC_ASSERT_EQ(add(2, 3), five);
