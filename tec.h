@@ -32,6 +32,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef __cplusplus
+#include <stdexcept>
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 #define TEC_RED "\033[31m"
 #define TEC_GREEN "\033[32m"
 #define TEC_YELLOW "\033[33m"
@@ -88,8 +95,35 @@ typedef struct {
 void tec_register(const char* suite, const char* name, const char* file,
                   tec_func_t func, bool xfail);
 
+void _tec_post_wrapper(bool is_fail_case);
 extern tec_context_t tec_context;
 
+#ifdef __cplusplus
+}  // extern "C"
+#endif
+
+#ifdef __cplusplus
+#define TEC_AUTO_TYPE auto
+#else
+#define TEC_AUTO_TYPE __auto_type
+#endif
+
+#ifdef __cplusplus
+class tec_assertion_failure : public std::runtime_error {
+   public:
+    tec_assertion_failure(const char* msg) : std::runtime_error(msg) {}
+};
+class tec_skip_test : public std::runtime_error {
+   public:
+    tec_skip_test(const char* msg) : std::runtime_error(msg) {}
+};
+#endif
+
+#ifdef __cplusplus
+/*
+ * TODO
+ */
+#else  // C-ONLY: Original _Generic implementation
 #define TEC_FORMAT_VALUE_PAIR(x) TEC_FORMAT_SPEC(x), TEC_FORMAT_VALUE(x)
 #define _TEC_FABS(x) ((x) < 0.0 ? -(x) : (x))
 
@@ -140,11 +174,12 @@ extern tec_context_t tec_context;
         const char*: (x),    \
         char*: (x),          \
         default: (const void*)&(x))  // avoids int-to-pointer warning
+#endif
 
 #define TEC_ASSERT(condition)                                                  \
     do {                                                                       \
         tec_context.stats.total_assertions++;                                  \
-        __auto_type _tec_cond_result = (condition);                            \
+        TEC_AUTO_TYPE _tec_cond_result = (condition);                          \
         if (!(_tec_cond_result)) {                                             \
             snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
                      "    " TEC_RED "✗" TEC_RESET                              \
@@ -159,8 +194,8 @@ extern tec_context_t tec_context;
 #define TEC_ASSERT_EQ(a, b)                                                    \
     do {                                                                       \
         tec_context.stats.total_assertions++;                                  \
-        __auto_type _a = a;                                                    \
-        __auto_type _b = b;                                                    \
+        TEC_AUTO_TYPE _a = a;                                                  \
+        TEC_AUTO_TYPE _b = b;                                                  \
         if ((_a) != (_b)) {                                                    \
             TEC_FMT(_a, tec_context.format_bufs[0]);                           \
             TEC_FMT(_b, tec_context.format_bufs[1]);                           \
@@ -177,8 +212,8 @@ extern tec_context_t tec_context;
 
 #define TEC_ASSERT_NE(a, b)                                                    \
     do {                                                                       \
-        __auto_type _a = a;                                                    \
-        __auto_type _b = b;                                                    \
+        TEC_AUTO_TYPE _a = a;                                                  \
+        TEC_AUTO_TYPE _b = b;                                                  \
         tec_context.stats.total_assertions++;                                  \
         if ((_a) == (_b)) {                                                    \
             TEC_FMT(_a, tec_context.format_bufs[0]);                           \
@@ -195,10 +230,10 @@ extern tec_context_t tec_context;
 #define TEC_ASSERT_NEAR(a, b, tolerance)                                       \
     do {                                                                       \
         tec_context.stats.total_assertions++;                                  \
-        __auto_type _a = (a);                                                  \
-        __auto_type _b = (b);                                                  \
-        __auto_type _tol = (tolerance);                                        \
-        __auto_type _diff = _TEC_FABS((double)_a - (double)_b);                \
+        TEC_AUTO_TYPE _a = (a);                                                \
+        TEC_AUTO_TYPE _b = (b);                                                \
+        TEC_AUTO_TYPE _tol = (tolerance);                                      \
+        TEC_AUTO_TYPE _diff = _TEC_FABS((double)_a - (double)_b);              \
         if (_diff > (double)_tol) {                                            \
             snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
                      "    " TEC_RED "✗" TEC_RESET                              \
@@ -220,8 +255,8 @@ extern tec_context_t tec_context;
 #define TEC_ASSERT_FLOAT_EQ(a, b)                                              \
     do {                                                                       \
         tec_context.stats.total_assertions++;                                  \
-        __auto_type _a = (a);                                                  \
-        __auto_type _b = (b);                                                  \
+        TEC_AUTO_TYPE _a = (a);                                                \
+        TEC_AUTO_TYPE _b = (b);                                                \
         double _default_tol = DBL_EPSILON * 4.0;                               \
         double _diff = _TEC_FABS((double)_a - (double)_b);                     \
         if (_diff > _default_tol) {                                            \
@@ -309,8 +344,8 @@ extern tec_context_t tec_context;
 #define _TEC_ASSERT_OP(a, b, op)                                               \
     do {                                                                       \
         tec_context.stats.total_assertions++;                                  \
-        __auto_type _a = a;                                                    \
-        __auto_type _b = b;                                                    \
+        TEC_AUTO_TYPE _a = a;                                                  \
+        TEC_AUTO_TYPE _b = b;                                                  \
         if (!(_a op _b)) {                                                     \
             TEC_FMT(_a, tec_context.format_bufs[0]);                           \
             TEC_FMT(_b, tec_context.format_bufs[1]);                           \
@@ -350,11 +385,11 @@ extern tec_context_t tec_context;
     }                                                     \
     static void tec_##suite_name_##test_name(void)
 
-#define TEC_POST_FAIL()                                                       \
-    do {                                                                      \
-        tec_context.current_failed++;                                         \
-        tec_context.stats.failed_assertions++;                                \
-        if (tec_context.jump_set) longjmp(tec_context.jump_buffer, TEC_FAIL); \
+#define TEC_POST_FAIL()                        \
+    do {                                       \
+        tec_context.current_failed++;          \
+        tec_context.stats.failed_assertions++; \
+        _tec_post_wrapper(true);               \
     } while (0);
 
 #define TEC_POST_PASS()                        \
@@ -363,17 +398,37 @@ extern tec_context_t tec_context;
         tec_context.stats.passed_assertions++; \
     } while (0);
 
-#define TEC_SKIP(reason)                                                      \
-    do {                                                                      \
-        const char* _reason = (reason);                                       \
-        snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN,    \
-                 "    " TEC_YELLOW "»" TEC_RESET " Skipped: %s (line %d)\n",  \
-                 _reason, __LINE__);                                          \
-        if (tec_context.jump_set) longjmp(tec_context.jump_buffer, TEC_SKIP); \
+#define TEC_SKIP(reason)                                                     \
+    do {                                                                     \
+        const char* _reason = (reason);                                      \
+        snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN,   \
+                 "    " TEC_YELLOW "»" TEC_RESET " Skipped: %s (line %d)\n", \
+                 _reason, __LINE__);                                         \
+        _tec_post_wrapper(false);                                            \
     } while (0)
 
 #ifdef TEC_IMPLEMENTATION
-tec_context_t tec_context = {0};
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+tec_context_t tec_context = {};
+
+inline void _tec_post_wrapper(bool is_fail_case) {
+    if (is_fail_case) {
+#ifdef __cplusplus
+        throw tec_assertion_failure(tec_context.failure_message);
+#else
+        if (tec_context.jump_set) longjmp(tec_context.jump_buffer, TEC_FAIL);
+#endif
+    } else {
+#ifdef __cplusplus
+        throw tec_skip_test(tec_context.failure_message);
+#else
+        if (tec_context.jump_set) longjmp(tec_context.jump_buffer, TEC_SKIP);
+#endif
+    }
+}
 
 int tec_compare_entries(const void* a, const void* b) {
     tec_entry_t* entry_a = (tec_entry_t*)a;
@@ -515,6 +570,7 @@ bool tec_should_run(const tec_entry_t* test) {
 
 int tec_run_all(int argc, char** argv) {
     int result = 0;
+    const char* current_suite = NULL;
     result = tec_parse_args(argc, argv);
     if (result) goto cleanup;
     printf(TEC_BLUE "================================\n");
@@ -523,8 +579,6 @@ int tec_run_all(int argc, char** argv) {
 
     qsort(tec_context.registry.entries, tec_context.registry.tec_count,
           sizeof(tec_entry_t), tec_compare_entries);
-
-    const char* current_suite = NULL;
 
     for (size_t i = 0; i < tec_context.registry.tec_count; ++i) {
         tec_entry_t* test = &tec_context.registry.entries[i];
@@ -554,14 +608,37 @@ int tec_run_all(int argc, char** argv) {
         tec_context.failure_message[0] = '\0';
         tec_context.stats.ran_tests++;
 
+#ifdef __cplusplus
+        try {
+            test->func();
+            tec_process_test_result(TEC_INITIAL, test);
+        } catch (const tec_assertion_failure&) {
+            tec_process_test_result(TEC_FAIL, test);
+        } catch (const tec_skip_test&) {
+            tec_process_test_result(TEC_SKIP, test);
+        } catch (const std::exception& e) {
+            tec_context.current_failed++;
+            snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN,
+                     "  " TEC_RED "✗" TEC_RESET
+                     " Test threw an unhandled std::exception: %s\n",
+                     e.what());
+            tec_process_test_result(TEC_FAIL, test);
+        } catch (...) {
+            tec_context.current_failed++;
+            snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN,
+                     "  " TEC_RED "✗" TEC_RESET
+                     " Test threw an unknown C++ exception.\n");
+            tec_process_test_result(TEC_FAIL, test);
+        }
+#else
         tec_context.jump_set = true;
         int jump_val = setjmp(tec_context.jump_buffer);
         if (jump_val == TEC_INITIAL) {
             test->func();
         }
         tec_context.jump_set = false;
-
-        tec_process_test_result(jump_val, test);
+        tec_process_test_result((JUMP_CODES)jump_val, test);
+#endif
     }
 
     printf("\n" TEC_BLUE "================================" TEC_RESET "\n");
@@ -601,5 +678,8 @@ cleanup:
 #define TEC_MAIN() \
     int main(int argc, char** argv) { return tec_run_all(argc, argv); }
 
+#ifdef __cplusplus
+}
+#endif
 #endif  // TEC_IMPLEMENTATION
 #endif  // TEC_H
