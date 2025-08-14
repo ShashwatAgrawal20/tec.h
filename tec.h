@@ -33,7 +33,9 @@
 #include <string.h>
 
 #ifdef __cplusplus
+#include <sstream>
 #include <stdexcept>
+#include <string>
 #endif
 
 #ifdef __cplusplus
@@ -52,7 +54,9 @@ extern "C" {
 #define TEC_FMT_SLOTS 2
 #define TEC_FMT_SLOT_SIZE TEC_TMP_STRBUF_LEN
 
-typedef enum { TEC_INITIAL, TEC_FAIL, TEC_SKIP } JUMP_CODES;
+#define _TEC_FABS(x) ((x) < 0.0 ? -(x) : (x))
+
+typedef enum { TEC_INITIAL, TEC_FAIL, TEC_SKIP_e } JUMP_CODES;
 
 typedef void (*tec_func_t)(void);
 
@@ -96,6 +100,9 @@ void tec_register(const char* suite, const char* name, const char* file,
                   tec_func_t func, bool xfail);
 
 void _tec_post_wrapper(bool is_fail_case);
+void TEC_POST_FAIL(void);
+void TEC_SKIP(const char* reason);
+
 extern tec_context_t tec_context;
 
 #ifdef __cplusplus
@@ -120,12 +127,24 @@ class tec_skip_test : public std::runtime_error {
 #endif
 
 #ifdef __cplusplus
-/*
- * TODO
- */
+template <typename T>
+std::string tec_to_string(const T& value) {
+    std::stringstream ss;
+    ss << value;
+    return ss.str();
+}
+inline std::string tec_to_string(const char* value) {
+    if (value == NULL) return "(null)";
+    return "\"" + std::string(value) + "\"";
+}
+inline std::string tec_to_string(char* value) {
+    return tec_to_string(const_cast<const char*>(value));
+}
+#define TEC_FMT(x, buf) \
+    snprintf((buf), TEC_FMT_SLOT_SIZE, "%s", tec_to_string(x).c_str())
+
 #else  // C-ONLY: Original _Generic implementation
 #define TEC_FORMAT_VALUE_PAIR(x) TEC_FORMAT_SPEC(x), TEC_FORMAT_VALUE(x)
-#define _TEC_FABS(x) ((x) < 0.0 ? -(x) : (x))
 
 #define TEC_FMT(x, buf) \
     snprintf((buf), TEC_TMP_STRBUF_LEN, TEC_FORMAT_VALUE_PAIR(x))
@@ -175,6 +194,12 @@ class tec_skip_test : public std::runtime_error {
         char*: (x),          \
         default: (const void*)&(x))  // avoids int-to-pointer warning
 #endif
+
+#define TEC_POST_PASS()                        \
+    do {                                       \
+        tec_context.current_passed++;          \
+        tec_context.stats.passed_assertions++; \
+    } while (0);
 
 #define TEC_ASSERT(condition)                                                  \
     do {                                                                       \
@@ -385,28 +410,6 @@ class tec_skip_test : public std::runtime_error {
     }                                                     \
     static void tec_##suite_name_##test_name(void)
 
-#define TEC_POST_FAIL()                        \
-    do {                                       \
-        tec_context.current_failed++;          \
-        tec_context.stats.failed_assertions++; \
-        _tec_post_wrapper(true);               \
-    } while (0);
-
-#define TEC_POST_PASS()                        \
-    do {                                       \
-        tec_context.current_passed++;          \
-        tec_context.stats.passed_assertions++; \
-    } while (0);
-
-#define TEC_SKIP(reason)                                                     \
-    do {                                                                     \
-        const char* _reason = (reason);                                      \
-        snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN,   \
-                 "    " TEC_YELLOW "»" TEC_RESET " Skipped: %s (line %d)\n", \
-                 _reason, __LINE__);                                         \
-        _tec_post_wrapper(false);                                            \
-    } while (0)
-
 #ifdef TEC_IMPLEMENTATION
 #ifdef __cplusplus
 extern "C" {
@@ -414,20 +417,27 @@ extern "C" {
 
 tec_context_t tec_context = {};
 
-inline void _tec_post_wrapper(bool is_fail_case) {
-    if (is_fail_case) {
+inline void TEC_POST_FAIL(void) {
+    tec_context.current_failed++;
+    tec_context.stats.failed_assertions++;
 #ifdef __cplusplus
-        throw tec_assertion_failure(tec_context.failure_message);
+    throw tec_assertion_failure(tec_context.failure_message);
 #else
-        if (tec_context.jump_set) longjmp(tec_context.jump_buffer, TEC_FAIL);
+    if (tec_context.jump_set) longjmp(tec_context.jump_buffer, TEC_FAIL);
 #endif
-    } else {
+}
+
+inline void TEC_SKIP(const char* reason) {
+    const char* _reason = (reason);
+    snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN,
+             "    " TEC_YELLOW "»" TEC_RESET " Skipped: %s (line %d)\n",
+             _reason, __LINE__);
 #ifdef __cplusplus
-        throw tec_skip_test(tec_context.failure_message);
+    printf("nigga here\n");
+    throw tec_skip_test(tec_context.failure_message);
 #else
-        if (tec_context.jump_set) longjmp(tec_context.jump_buffer, TEC_SKIP);
+    if (tec_context.jump_set) longjmp(tec_context.jump_buffer, TEC_SKIP_e);
 #endif
-    }
 }
 
 int tec_compare_entries(const void* a, const void* b) {
@@ -478,7 +488,7 @@ void tec_register(const char* suite, const char* name, const char* file,
 
 void tec_process_test_result(JUMP_CODES jump_val, const tec_entry_t* test) {
     bool has_failed = (jump_val == TEC_FAIL || tec_context.current_failed > 0);
-    if (jump_val == TEC_SKIP) {
+    if (jump_val == TEC_SKIP_e) {
         tec_context.stats.skipped_tests++;
         printf("  " TEC_YELLOW "»" TEC_RESET " %s\n", test->name);
         printf("%s", tec_context.failure_message);
@@ -615,7 +625,7 @@ int tec_run_all(int argc, char** argv) {
         } catch (const tec_assertion_failure&) {
             tec_process_test_result(TEC_FAIL, test);
         } catch (const tec_skip_test&) {
-            tec_process_test_result(TEC_SKIP, test);
+            tec_process_test_result(TEC_SKIP_e, test);
         } catch (const std::exception& e) {
             tec_context.current_failed++;
             snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN,
