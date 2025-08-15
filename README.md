@@ -1,8 +1,14 @@
 # tec.h
 
-A tiny, **header-only** testing library for C. Created because unit testing
+A tiny, **header-only** testing library for C and C++. Created because unit testing
 shouldn't require complex setup or build system gymnastics, **tec.h** gets out of
 your way so you can just write tests. Zero-setup unit testing is just one `#include` away.
+
+## Why TEC?
+- **Zero setup**: drop in a single header, start writing tests.
+- **No build system magic**: works with raw `gcc` or `clang`.
+- **Cross-language**: the same tests run in both C and C++.
+- **Automatic discovery**: no need to list or register test cases manually.
 
 > [!IMPORTANT]
 > TEC is currently in the early stages of development, and while it is somewhat
@@ -10,12 +16,25 @@ your way so you can just write tests. Zero-setup unit testing is just one `#incl
 
 ## Table of Contents
 - [In Action](#in-action)
+- [Why TEC](#why-tec)
 - [Quick Start](#quick-start)
 - [Features](#features)
 - [Test Suites](#test-suites)
 - [Assertion API](#assertion-api)
 - [Advanced Usage](#advanced-usage)
+  - [Filtering Tests](#filtering-tests)
+  - [Test Control](#test-control)
+    - [Skipping Tests](#skipping-tests)
+    - [Expected Failures](#expected-failures)
+  - [Floating-Point Comparisons](#floating-point-comparisons)
+  - [Resource Cleanup](#resource-cleanup)
+    - [C: TEC_TRY_BLOCK](#c-the-tec_try_block)
+    - [C++: try-catch](#c-trycatch)
+- [C++ Integration](#c-integration)
+  - [Exception Handling](#exception-handling)
+  - [Resource Management (RAII)](#resource-management-raii)
 - [Example Project & Makefile](#example-project--makefile)
+
 
 ***
 
@@ -45,6 +64,7 @@ TEC(string_test, test_strings) {
 
 TEC_MAIN()
 ```
+> See the full list of assertions in the **[Assertion API](#assertion-api)**.
 
 4. Compile and run it:
 
@@ -78,10 +98,11 @@ That's it. There is no step 5.
 ## Features
 
 - **Header-Only**: Just `#include "tec.h"`. No libraries to build or link.
-- **No Dependencies**: Written in standard C with common GCC/Clang extensions.
+- **No Dependencies**: Written in standard C/C++ with common GCC/Clang extensions.
 - **Rich Assertion Set**: Comprehensive assertions including floating-point comparisons, string equality, and null checks.
 - **Automatic Test Registration**: The `TEC()` macro registers tests. `TEC_MAIN()` runs them.
 - **Dynamic Test Capacity**: The test registry grows as needed, so you don't have to worry about a predefined test limit.
+- **C & C++ Compatibility**: Works seamlessly in both C and C++ projects, automatically adapting its failure mechanism (`longjmp` vs. `exceptions`).
 - **Expected Failures**: Mark tests that should fail with `TEC_XFAIL()` for test-driven development.
 - **Colored Output**: Clear, colored terminal output for better readability.
 - **Test Filtering**: Run specific tests using command-line filters.
@@ -148,7 +169,9 @@ The filter is matched against the full test name in the format: `suite_name.test
 - Filtering is **case-sensitive** and uses simple **substring** logic (not regex).
 - If no filters are given, **all registered tests** will be executed.
 
-### Skipping Tests
+### Test Control
+
+#### Skipping Tests
 You can skip a test by placing `TEC_SKIP("reason")` at the beginning of its body.
 This is useful for temporarily disabling tests for features that are not yet implemented.
 
@@ -160,7 +183,7 @@ TEC(feature_x, test_new_functionality) {
 }
 ```
 
-### Expected Failures
+#### Expected Failures
 For features with known bugs, you can use `TEC_XFAIL` to define a test that is
 expected to fail. The test suite will **only pass** if this test **actually fails**.
 If an XFAIL test **unexpectedly succeeds**, it will be reported as a **failure**,
@@ -190,10 +213,16 @@ TEC(math, test_floating_point) {
     TEC_ASSERT_NEAR(result, 0.3, 0.0001);
 }
 ```
+> See the full list of assertions in the **[Assertion API](#assertion-api)**.
 
-### Test Blocks with Cleanup
-When an assertion fails, `tec.h` uses `longjmp` to immediately stop the test.
-This can cause resource leaks if the test allocated memory or opened files.
+### Resource Cleanup
+When an assertion fails, `tec.h` immediately stops the test. In C, this is done
+with `longjmp`, and in C++, an `exception` is thrown. This can cause resource leaks
+if the test allocated memory or opened files.
+
+> See examples for **[C: TEC_TRY_BLOCK](#c-the-tec_try_block)** and **[C++: try-catch](#c-trycatch)**.
+
+#### C: The `TEC_TRY_BLOCK`
 To ensure cleanup code runs, you can wrap your assertions in a `TEC_TRY_BLOCK`.
 
 If an assertion inside the block fails, execution will "jump" to the end of the
@@ -215,6 +244,68 @@ TEC(cleanup, test_with_cleanup) {
     // ...but the jump lands here, so cleanup can proceed.
     printf("Cleaning up resources...\n");
     free(buffer);
+}
+```
+
+#### C++: `try...catch`
+In C++, assertion failures throw a [`tec_assertion_failure`](#exception-handling)
+exception instead of using `longjmp`. You can wrap your test logic in a standard
+`try...catch` block to ensure cleanup code runs before rethrowing the exception.
+
+See **[C++ Integration → Exception Handling](#exception-handling)** for a full example.
+
+---
+
+## C++ Integration
+`tec.h` is fully compatible with C++. When compiled with a C++ compiler, it
+automatically switches from `setjmp/longjmp` to throwing `exceptions` on assertion
+failures, enabling modern C++ practices.
+
+### Exception Handling
+An assertion failure throws a `tec_assertion_failure` exception. You can use
+standard `try...catch` blocks for resource cleanup, just as you would in any other
+C++ code.
+
+```cpp
+TEC(cpp_style, manual_cleanup) {
+    // A raw pointer that must be manually deleted.
+    int* my_int = new int(100);
+
+    try {
+        TEC_ASSERT_EQ(*my_int, 99); // This fails and throws.
+    } catch (...) {
+        // The catch block ensures our resource is freed.
+        std::cout << "  Cleaning up after failure..." << std::endl;
+        delete my_int;
+        // Re-throw the exception so the test is correctly marked as failed.
+        throw;
+    }
+
+    // This code is unreachable if the assertion above fails.
+    delete my_int;
+}
+```
+
+### Resource Management (RAII)
+A better approach in C++ is to use RAII (Resource Acquisition Is Initialization)
+with smart pointers and standard containers. This eliminates the need for manual
+cleanup, as resources are automatically released when they go out of scope, even
+when an exception is thrown.
+
+```cpp
+#include <vector>
+#include <memory>
+
+TEC(cpp_style, raii_with_smart_pointers) {
+    // The unique_ptr will automatically delete the array on scope exit.
+    std::unique_ptr<int[]> my_array(new int[100]);
+    TEC_ASSERT(my_array != nullptr);
+
+    // The vector's destructor will handle its own memory.
+    std::vector<int> my_vector = {1, 2, 3};
+    TEC_ASSERT_EQ(my_vector.size(), (size_t)4); // Fails and throws.
+
+    // No manual cleanup needed. The test fails, and all memory is freed correctly.
 }
 ```
 
