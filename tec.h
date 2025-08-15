@@ -433,7 +433,6 @@ inline void TEC_SKIP(const char* reason) {
              "    " TEC_YELLOW "»" TEC_RESET " Skipped: %s (line %d)\n",
              _reason, __LINE__);
 #ifdef __cplusplus
-    printf("nigga here\n");
     throw tec_skip_test(tec_context.failure_message);
 #else
     if (tec_context.jump_set) longjmp(tec_context.jump_buffer, TEC_SKIP_e);
