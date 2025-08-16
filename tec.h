@@ -49,6 +49,22 @@ extern "C" {
 #define TEC_CYAN "\033[36m"
 #define TEC_RESET "\033[0m"
 
+// MIGHT MAKE THE ASCII one the defaults
+#ifdef _WIN32
+#define TEC_TICK_CHAR "[+]"
+#define TEC_CROSS_CHAR "[x]"
+#define TEC_ARROW_CHAR "->"
+#define TEC_LINE_CHAR "|"
+#else
+#define TEC_TICK_CHAR "✓"
+#define TEC_CROSS_CHAR "✗"
+#define TEC_ARROW_CHAR "»"
+#define TEC_LINE_CHAR "│"
+#endif
+
+#define TEC_PRE_SPACE "    "
+#define TEC_PRE_SPACE_SHORT "  "
+
 #define TEC_MAX_FAILURE_MESSAGE_LEN 1024
 #define TEC_TMP_STRBUF_LEN 256
 #define TEC_FMT_SLOTS 2
@@ -101,7 +117,7 @@ void tec_register(const char* suite, const char* name, const char* file,
 
 void _tec_post_wrapper(bool is_fail_case);
 void TEC_POST_FAIL(void);
-void TEC_SKIP(const char* reason);
+void _tec_skip_impl(const char* reason, int line);
 
 extern tec_context_t tec_context;
 
@@ -201,13 +217,15 @@ inline std::string tec_to_string(char* value) {
         tec_context.stats.passed_assertions++; \
     } while (0);
 
+#define TEC_SKIP(reason) _tec_skip_impl(reason, __LINE__)
+
 #define TEC_ASSERT(condition)                                                  \
     do {                                                                       \
         tec_context.stats.total_assertions++;                                  \
         TEC_AUTO_TYPE _tec_cond_result = (condition);                          \
         if (!(_tec_cond_result)) {                                             \
             snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
-                     "    " TEC_RED "✗" TEC_RESET                              \
+                     TEC_PRE_SPACE TEC_RED TEC_CROSS_CHAR TEC_RESET            \
                      " Assertion failed: %s (line %d)\n",                      \
                      #condition, __LINE__);                                    \
             TEC_POST_FAIL();                                                   \
@@ -225,7 +243,7 @@ inline std::string tec_to_string(char* value) {
             TEC_FMT(_a, tec_context.format_bufs[0]);                           \
             TEC_FMT(_b, tec_context.format_bufs[1]);                           \
             snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
-                     "    " TEC_RED "✗" TEC_RESET                              \
+                     TEC_PRE_SPACE TEC_RED TEC_CROSS_CHAR TEC_RESET            \
                      " Expected %s == %s, got %s != %s (line %d)\n",           \
                      #a, #b, tec_context.format_bufs[0],                       \
                      tec_context.format_bufs[1], __LINE__);                    \
@@ -243,7 +261,7 @@ inline std::string tec_to_string(char* value) {
         if ((_a) == (_b)) {                                                    \
             TEC_FMT(_a, tec_context.format_bufs[0]);                           \
             snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
-                     "    " TEC_RED "✗" TEC_RESET                              \
+                     TEC_PRE_SPACE TEC_RED TEC_CROSS_CHAR TEC_RESET            \
                      " Expected %s != %s, but both are %s (line %d)\n",        \
                      #a, #b, tec_context.format_bufs[0], __LINE__);            \
             TEC_POST_FAIL();                                                   \
@@ -260,17 +278,17 @@ inline std::string tec_to_string(char* value) {
         TEC_AUTO_TYPE _tol = (tolerance);                                      \
         TEC_AUTO_TYPE _diff = _TEC_FABS((double)_a - (double)_b);              \
         if (_diff > (double)_tol) {                                            \
-            snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
-                     "    " TEC_RED "✗" TEC_RESET                              \
-                     " Nearness assertion failed "                             \
-                     "(line %d)\n"                                             \
-                     "    " TEC_YELLOW "│" TEC_RESET                           \
-                     " Expected: %s and %s "                                   \
-                     "to be within %g\n"                                       \
-                     "    " TEC_YELLOW "│" TEC_RESET                           \
-                     " Actual:   they differ "                                 \
-                     "by %g\n",                                                \
-                     __LINE__, #a, #b, (double)_tol, _diff);                   \
+            snprintf(                                                          \
+                tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN,      \
+                TEC_PRE_SPACE TEC_RED TEC_CROSS_CHAR TEC_RESET                 \
+                " Nearness assertion failed "                                  \
+                "(line %d)\n" TEC_PRE_SPACE TEC_YELLOW TEC_LINE_CHAR TEC_RESET \
+                " Expected: %s and %s "                                        \
+                "to be within %g\n" TEC_PRE_SPACE TEC_YELLOW                   \
+                    TEC_LINE_CHAR TEC_RESET                                    \
+                " Actual:   they differ "                                      \
+                "by %g\n",                                                     \
+                __LINE__, #a, #b, (double)_tol, _diff);                        \
             TEC_POST_FAIL();                                                   \
         } else {                                                               \
             TEC_POST_PASS();                                                   \
@@ -286,16 +304,16 @@ inline std::string tec_to_string(char* value) {
         double _diff = _TEC_FABS((double)_a - (double)_b);                     \
         if (_diff > _default_tol) {                                            \
             snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
-                     "    " TEC_RED "✗" TEC_RESET                              \
+                     TEC_PRE_SPACE TEC_RED TEC_CROSS_CHAR TEC_RESET            \
                      " Floating point equality "                               \
-                     "failed (line %d)\n"                                      \
-                     "    " TEC_YELLOW "│" TEC_RESET                           \
-                     " Expected: %s == %s\n"                                   \
-                     "    " TEC_YELLOW "│" TEC_RESET                           \
-                     " Actual:   %s (%g)\n"                                    \
-                     "    " TEC_YELLOW "│" TEC_RESET                           \
-                     "      and: %s (%g)\n"                                    \
-                     "    " TEC_YELLOW "│" TEC_RESET                           \
+                     "failed (line %d)\n" TEC_PRE_SPACE TEC_YELLOW             \
+                         TEC_LINE_CHAR TEC_RESET                               \
+                     " Expected: %s == %s\n" TEC_PRE_SPACE TEC_YELLOW          \
+                         TEC_LINE_CHAR TEC_RESET                               \
+                     " Actual:   %s (%g)\n" TEC_PRE_SPACE TEC_YELLOW           \
+                         TEC_LINE_CHAR TEC_RESET                               \
+                     "      and: %s (%g)\n" TEC_PRE_SPACE TEC_YELLOW           \
+                         TEC_LINE_CHAR TEC_RESET                               \
                      " Difference: %g ( > "                                    \
                      "tolerance %g)\n",                                        \
                      __LINE__, #a, #b, #a, (double)_a, #b, (double)_b, _diff,  \
@@ -322,7 +340,7 @@ inline std::string tec_to_string(char* value) {
             ((_a == NULL && _b == NULL) || (_a && _b && strcmp(_a, _b) == 0)); \
         if (!equal) {                                                          \
             snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
-                     "    " TEC_RED "✗" TEC_RESET                              \
+                     TEC_PRE_SPACE TEC_RED TEC_CROSS_CHAR TEC_RESET            \
                      " Expected strings equal: \"%s\" != \"%s\" (line %d)\n",  \
                      (_a ? _a : "(null)"), (_b ? _b : "(null)"), __LINE__);    \
             TEC_POST_FAIL();                                                   \
@@ -337,7 +355,7 @@ inline std::string tec_to_string(char* value) {
         const void* _ptr = ptr;                                                \
         if ((_ptr) != NULL) {                                                  \
             snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
-                     "    " TEC_RED "✗" TEC_RESET                              \
+                     TEC_PRE_SPACE TEC_RED TEC_CROSS_CHAR TEC_RESET            \
                      " Expected %s to be NULL, got %p (line %d)\n",            \
                      #ptr, (const void*)(_ptr), __LINE__);                     \
             TEC_POST_FAIL();                                                   \
@@ -352,7 +370,7 @@ inline std::string tec_to_string(char* value) {
         const void* _ptr = ptr;                                                \
         if ((_ptr) == NULL) {                                                  \
             snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
-                     "    " TEC_RED "✗" TEC_RESET                              \
+                     TEC_PRE_SPACE TEC_RED TEC_CROSS_CHAR TEC_RESET            \
                      " Expected %s to not be NULL (line %d)\n",                \
                      #ptr, __LINE__);                                          \
             TEC_POST_FAIL();                                                   \
@@ -382,7 +400,7 @@ inline std::string tec_to_string(char* value) {
                  : (strcmp(_op_str, "<=") == 0) ? ">"                          \
                                                 : "???");                      \
             snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
-                     "    " TEC_RED "✗" TEC_RESET                              \
+                     TEC_PRE_SPACE TEC_RED TEC_CROSS_CHAR TEC_RESET            \
                      " Expected %s %s %s, got %s %s %s (line %d)\n",           \
                      #a, _op_str, #b, tec_context.format_bufs[0], _inv_op_str, \
                      tec_context.format_bufs[1], __LINE__);                    \
@@ -427,11 +445,12 @@ inline void TEC_POST_FAIL(void) {
 #endif
 }
 
-inline void TEC_SKIP(const char* reason) {
+inline void _tec_skip_impl(const char* reason, int line) {
     const char* _reason = (reason);
     snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN,
-             "    " TEC_YELLOW "»" TEC_RESET " Skipped: %s (line %d)\n",
-             _reason, __LINE__);
+             TEC_PRE_SPACE TEC_YELLOW TEC_ARROW_CHAR TEC_RESET
+             " Skipped: %s (line %d)\n",
+             _reason, line);
 #ifdef __cplusplus
     throw tec_skip_test(tec_context.failure_message);
 #else
@@ -489,29 +508,35 @@ void tec_process_test_result(JUMP_CODES jump_val, const tec_entry_t* test) {
     bool has_failed = (jump_val == TEC_FAIL || tec_context.current_failed > 0);
     if (jump_val == TEC_SKIP_e) {
         tec_context.stats.skipped_tests++;
-        printf("  " TEC_YELLOW "»" TEC_RESET " %s\n", test->name);
+        printf(TEC_PRE_SPACE_SHORT TEC_YELLOW TEC_ARROW_CHAR TEC_RESET " %s\n",
+               test->name);
         printf("%s", tec_context.failure_message);
         return;
     }
     if (test->xfail) {
         if (has_failed) {
             tec_context.stats.passed_tests++;
-            printf("  " TEC_GREEN "✓" TEC_RESET " %s (expected failure)\n",
+            printf(TEC_PRE_SPACE_SHORT TEC_GREEN TEC_TICK_CHAR TEC_RESET
+                   " %s (expected failure)\n",
                    test->name);
         } else {
             tec_context.stats.failed_tests++;
-            printf("  " TEC_RED "✗" TEC_RESET " %s (unexpected success)\n",
+            printf(TEC_PRE_SPACE_SHORT TEC_RED TEC_CROSS_CHAR TEC_RESET
+                   " %s (unexpected success)\n",
                    test->name);
         }
     } else {
         if (has_failed) {
             tec_context.stats.failed_tests++;
-            printf("  " TEC_RED "✗" TEC_RESET " %s - %zu assertion(s) failed\n",
+            printf(TEC_PRE_SPACE_SHORT TEC_RED TEC_CROSS_CHAR TEC_RESET
+                   " %s - %zu assertion(s) failed\n",
                    test->name, tec_context.current_failed);
             printf("%s", tec_context.failure_message);
         } else {
             tec_context.stats.passed_tests++;
-            printf("  " TEC_GREEN "✓" TEC_RESET " %s\n", test->name);
+            printf(TEC_PRE_SPACE_SHORT TEC_GREEN TEC_TICK_CHAR TEC_RESET
+                   " %s\n",
+                   test->name);
         }
     }
 }
@@ -600,12 +625,19 @@ int tec_run_all(int argc, char** argv) {
         if (current_suite == NULL || strcmp(current_suite, test->suite) != 0) {
             current_suite = test->suite;
             const char* display_name = strstr(test->file, "tests/");
+            if (display_name == NULL) {
+                display_name = strstr(test->file, "tests\\");
+            }
 
             if (display_name) {
                 display_name = display_name + 6;
             } else {
-                display_name = strrchr(test->file, '/');
-                display_name = display_name ? display_name + 1 : test->file;
+                const char* f_slash = strrchr(test->file, '/');
+                const char* b_slash = strrchr(test->file, '\\');
+                const char* last_slash =
+                    (f_slash > b_slash) ? f_slash : b_slash;
+
+                display_name = last_slash ? last_slash + 1 : test->file;
             }
 
             printf(TEC_MAGENTA "\nSUITE: %s" TEC_RESET " (%s)\n", current_suite,
@@ -628,14 +660,14 @@ int tec_run_all(int argc, char** argv) {
         } catch (const std::exception& e) {
             tec_context.current_failed++;
             snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN,
-                     "  " TEC_RED "✗" TEC_RESET
+                     TEC_PRE_SPACE_SHORT TEC_RED TEC_CROSS_CHAR TEC_RESET
                      " Test threw an unhandled std::exception: %s\n",
                      e.what());
             tec_process_test_result(TEC_FAIL, test);
         } catch (...) {
             tec_context.current_failed++;
             snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN,
-                     "  " TEC_RED "✗" TEC_RESET
+                     TEC_PRE_SPACE_SHORT TEC_RED TEC_CROSS_CHAR TEC_RESET
                      " Test threw an unknown C++ exception.\n");
             tec_process_test_result(TEC_FAIL, test);
         }
