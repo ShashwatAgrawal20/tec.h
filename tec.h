@@ -28,6 +28,8 @@
 #include <float.h>
 #include <setjmp.h>
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -178,36 +180,38 @@ inline std::string tec_to_string(char* value) {
  * default case now uses (const void *)&x to bypass int-to-pointer-size
  * warnings.
  */
-#define TEC_FORMAT_SPEC(x)     \
-    _Generic((x),              \
-        int: "%d",             \
-        float: "%f",           \
-        double: "%lf",         \
-        unsigned long: "%zu",  \
-        unsigned int: "%u",    \
-        unsigned short: "%hu", \
-        unsigned char: "%hhu", \
-        signed long: "%ld",    \
-        signed short: "%hd",   \
-        signed char: "%hhd",   \
-        const char*: "%s",     \
-        char*: "%s",           \
+#define TEC_FORMAT_SPEC(x)                                                \
+    _Generic((x),                                                         \
+        int8_t: "%hhd",                                                   \
+        int16_t: "%hd",                                                   \
+        int32_t: "%d",                                                    \
+        int64_t: "%ld", /* fuck this. lp64 vs llp64; portable C my ass */ \
+        uint8_t: "%hhu",                                                  \
+        uint16_t: "%hu",                                                  \
+        uint32_t: "%u",                                                   \
+        size_t: "%zu", /* fuck windows, fuck mingw/msvc-crt, fuck me */   \
+        float: "%f",                                                      \
+        double: "%lf",                                                    \
+        long double: "%Lf",                                               \
+        char*: "%s",                                                      \
+        const char*: "%s",                                                \
         default: "%p")
 
-#define TEC_FORMAT_VALUE(x)  \
-    _Generic((x),            \
-        int: (x),            \
-        float: (x),          \
-        double: (x),         \
-        unsigned long: (x),  \
-        unsigned int: (x),   \
-        unsigned short: (x), \
-        unsigned char: (x),  \
-        signed long: (x),    \
-        signed short: (x),   \
-        signed char: (x),    \
-        const char*: (x),    \
-        char*: (x),          \
+#define TEC_FORMAT_VALUE(x) \
+    _Generic((x),           \
+        int8_t: (x),        \
+        int16_t: (x),       \
+        int32_t: (x),       \
+        int64_t: (x),       \
+        uint8_t: (x),       \
+        uint16_t: (x),      \
+        uint32_t: (x),      \
+        size_t: (x),        \
+        float: (x),         \
+        double: (x),        \
+        long double: (x),   \
+        char*: (x),         \
+        const char*: (x),   \
         default: (const void*)&(x))  // avoids int-to-pointer warning
 #endif
 
