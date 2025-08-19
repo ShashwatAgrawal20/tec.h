@@ -7,6 +7,7 @@
 #include <memory>
 #include <vector>
 TEC(cpp_Style, Vector) {
+    TEC_SKIP("NIGGA");
     std::vector<int> my_vector(100);  // THIS WILL AUTOFREE CAUSE OF RAII(dest)
 
     // Dynamically allocated int (manual memory management).
