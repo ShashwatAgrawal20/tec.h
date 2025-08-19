@@ -157,6 +157,7 @@ The library provides a straightforward set of assertions. On failure, it prints 
 ## Advanced Usage
 
 ### Filtering Tests
+#### Filter by suite/test name.
 You can selectively run tests by using `-f` or `--filter` followed by a substring pattern.
 The filter is matched against the full test name in the format: `suite_name.test_name`
 
@@ -165,9 +166,19 @@ The filter is matched against the full test name in the format: `suite_name.test
 ./test_runner --filter alloc    # matches memory.alloc, buffer.alloc, etc.
 ./test_runner -f division -f io # runs tests matching "division" OR "io"
 ```
+#### Filter by filename
+Prefer filtering at the file level?
+Add `--file` to make `-f/--filter` match against **filenames** instead of `suite.test` names.
+
+```bash
+./test_runner --file -f math_tests   # runs all tests in files matching "math_tests"
+./test_runner --file -f io.cpp       # runs tests from files containing "io.cpp"
+```
+> Rules of Filtering
 - You can provide multiple filters; tests matching any of them will be run.
 - Filtering is **case-sensitive** and uses simple **substring** logic (not regex).
 - If no filters are given, **all registered tests** will be executed.
+- No filters? -> All tests run.
 
 ### Test Control
 
