@@ -108,6 +108,7 @@ typedef struct {
     struct {
         char** filters;
         size_t filter_count;
+        bool filter_by_filename;
     } options;
     size_t current_passed;
     size_t current_failed;
@@ -549,11 +550,24 @@ void tec_print_usage(const char* prog_name) {
     printf("Usage: %s [options]\n", prog_name);
     printf("Options:\n");
     printf(
-        "  -f, --filter <pattern>  Run tests matching pattern. "
-        "Can be used multiple times.\n"
-        "                          Pattern is matched against "
-        "'suite_name.test_name'.\n");
-    printf("  -h, --help              Display this help message.\n");
+        "  -f, --filter <pattern>  Run tests where the name contains the given "
+        "pattern.\n"
+        "                          By default, matches against "
+        "'suite.name'.\n");
+    printf(
+        "  --file                  When present, changes the behavior of '-f' "
+        "to match against\n"
+        "                          the test's filename instead.\n");
+    printf("  -h, --help              Display this help message.\n\n");
+    printf("Examples:\n");
+    printf(
+        "  %s -f 'math'             # Run all tests with 'Math' in their "
+        "name\n",
+        prog_name);
+    printf(
+        "  %s --file -f 'math_utils.c'  # Run all tests in files with "
+        "'_tests.c' in the name\n",
+        prog_name);
 }
 
 int tec_parse_args(int argc, char** argv) {
@@ -579,6 +593,8 @@ int tec_parse_args(int argc, char** argv) {
                     "Error: Filter option requires an argument.\n" TEC_RESET);
                 return 1;
             }
+        } else if (strcmp(argv[i], "--file") == 0) {
+            tec_context.options.filter_by_filename = true;
         } else if (strcmp(argv[i], "-h") == 0 ||
                    strcmp(argv[i], "--help") == 0) {
             tec_print_usage(argv[0]);
@@ -594,11 +610,19 @@ int tec_parse_args(int argc, char** argv) {
 }
 
 bool tec_should_run(const tec_entry_t* test) {
-    char full_name[TEC_TMP_STRBUF_LEN];
-    snprintf(full_name, sizeof(full_name), "%s.%s", test->suite, test->name);
+    char full_name_buffer[TEC_TMP_STRBUF_LEN];
+    const char* target_string;
+
+    if (tec_context.options.filter_by_filename) {
+        target_string = test->file;
+    } else {
+        snprintf(full_name_buffer, sizeof(full_name_buffer), "%s.%s",
+                 test->suite, test->name);
+        target_string = full_name_buffer;
+    }
 
     for (size_t i = 0; i < tec_context.options.filter_count; ++i) {
-        if (strstr(full_name, tec_context.options.filters[i]) != NULL) {
+        if (strstr(target_string, tec_context.options.filters[i]) != NULL) {
             return true;
         }
     }
@@ -700,16 +724,33 @@ int tec_run_all(int argc, char** argv) {
            tec_context.stats.failed_assertions,
            tec_context.stats.total_assertions);
 
-    if (tec_context.stats.failed_tests == 0 &&
-        tec_context.stats.skipped_tests == 0) {
-        printf("\n" TEC_GREEN "All tests passed!" TEC_RESET "\n");
-        result = 0;
-    } else if (tec_context.stats.failed_tests > 0) {
+    if (tec_context.stats.failed_tests > 0) {
         printf("\n" TEC_RED "Some tests failed!" TEC_RESET "\n");
         result = 1;
-    } else {
+    } else if (tec_context.stats.ran_tests == 0) {
+        printf("\n" TEC_YELLOW "Warning: No tests were run." TEC_RESET "\n");
+        if (tec_context.stats.filtered_tests > 0) {
+            printf(TEC_YELLOW TEC_ARROW_CHAR TEC_RESET
+                   " All " TEC_CYAN "%zu" TEC_RESET
+                   " tests were filtered out by the following criteria:\n",
+                   tec_context.stats.filtered_tests);
+
+            const char* prefix = tec_context.options.filter_by_filename
+                                     ? TEC_PRE_SPACE_SHORT "--file -f"
+                                     : TEC_PRE_SPACE_SHORT "-f";
+            for (size_t i = 0; i < tec_context.options.filter_count; ++i) {
+                printf(TEC_PRE_SPACE_SHORT "%s " TEC_MAGENTA "%s" TEC_RESET
+                                           "\n",
+                       prefix, tec_context.options.filters[i]);
+            }
+        }
+        result = 1;
+    } else if (tec_context.stats.skipped_tests > 0) {
         printf("\n" TEC_YELLOW "Tests passed, but some were skipped." TEC_RESET
                "\n");
+        result = 0;
+    } else {
+        printf("\n" TEC_GREEN "All tests passed!" TEC_RESET "\n");
         result = 0;
     }
 
