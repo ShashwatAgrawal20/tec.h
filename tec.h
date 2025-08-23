@@ -415,6 +415,38 @@ inline std::string tec_to_string(char* value) {
         }                                                                      \
     } while (0)
 
+#ifdef __cplusplus
+#define TEC_ASSERT_THROWS(statement, exception_type)                           \
+    do {                                                                       \
+        tec_context.stats.total_assertions++;                                  \
+        try {                                                                  \
+            statement;                                                         \
+            snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
+                     TEC_PRE_SPACE TEC_RED TEC_CROSS_CHAR TEC_RESET            \
+                     " Expected statement `%s` to throw `%s`, but it did not " \
+                     "(line %d).\n",                                           \
+                     #statement, #exception_type, __LINE__);                   \
+            TEC_POST_FAIL();                                                   \
+        } catch (const exception_type&) {                                      \
+            TEC_POST_PASS();                                                   \
+        } catch (const std::exception& e) {                                    \
+            snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
+                     TEC_PRE_SPACE TEC_RED TEC_CROSS_CHAR TEC_RESET            \
+                     " Expected `%s` to throw `%s`, but it threw a "           \
+                     "std::exception with what(): %s (line %d)\n",             \
+                     #statement, #exception_type, e.what(), __LINE__);         \
+            TEC_POST_FAIL();                                                   \
+        } catch (...) {                                                        \
+            snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
+                     TEC_PRE_SPACE TEC_RED TEC_CROSS_CHAR TEC_RESET            \
+                     " Expected `%s` to throw `%s`, but it threw an unknown "  \
+                     "exception (line %d).\n",                                 \
+                     #statement, #exception_type, __LINE__);                   \
+            TEC_POST_FAIL();                                                   \
+        }                                                                      \
+    } while (0)
+#endif
+
 #define TEC(suite_name, test_name)                         \
     static void tec_##suite_name_##test_name(void);        \
     static void __attribute__((constructor))               \
