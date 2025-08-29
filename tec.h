@@ -76,15 +76,31 @@ extern "C" {
 
 typedef enum { TEC_INITIAL, TEC_FAIL, TEC_SKIP_e } JUMP_CODES;
 
+typedef enum {
+    TEC_SUITE_SETUP,
+    TEC_SUITE_TEARDOWN,
+    TEC_TEST_SETUP,
+    TEC_TEST_TEARDOWN
+} tec_fixture_type;
+
 typedef void (*tec_func_t)(void);
+typedef void (*tec_fixture_func_t)(void);
 
 typedef struct {
-    const char* suite;
-    const char* name;
-    const char* file;
+    const char *suite;
+    const char *name;
+    const char *file;
     tec_func_t func;
     bool xfail;
 } tec_entry_t;
+
+typedef struct {
+    const char *name;
+    tec_fixture_func_t setup;
+    tec_fixture_func_t teardown;
+    tec_fixture_func_t test_setup;
+    tec_fixture_func_t test_teardown;
+} tec_suite_t;
 
 typedef struct {
     jmp_buf jump_buffer;
@@ -101,12 +117,15 @@ typedef struct {
         size_t failed_assertions;
     } stats;
     struct {
-        tec_entry_t* entries;
+        tec_entry_t *entries;
+        tec_suite_t *suites;
         size_t tec_count;
         size_t tec_capacity;
+        size_t suite_count;
+        size_t suite_capacity;
     } registry;
     struct {
-        char** filters;
+        char **filters;
         size_t filter_count;
         bool filter_by_filename;
     } options;
@@ -115,17 +134,19 @@ typedef struct {
     bool jump_set;
 } tec_context_t;
 
-void tec_register(const char* suite, const char* name, const char* file,
+void tec_register(const char *suite, const char *name, const char *file,
                   tec_func_t func, bool xfail);
+void tec_register_fixture(const char *suite_name, tec_fixture_func_t func,
+                          tec_fixture_type fixture_type);
 
 void _tec_post_wrapper(bool is_fail_case);
 void TEC_POST_FAIL(void);
-void _tec_skip_impl(const char* reason, int line);
+void _tec_skip_impl(const char *reason, int line);
 
 extern tec_context_t tec_context;
 
 #ifdef __cplusplus
-}  // extern "C"
+} // extern "C"
 #endif
 
 #ifdef __cplusplus
@@ -136,41 +157,41 @@ extern tec_context_t tec_context;
 
 #ifdef __cplusplus
 class tec_assertion_failure : public std::runtime_error {
-   public:
-    tec_assertion_failure(const char* msg) : std::runtime_error(msg) {}
+  public:
+    tec_assertion_failure(const char *msg) : std::runtime_error(msg) {}
 };
 class tec_skip_test : public std::runtime_error {
-   public:
-    tec_skip_test(const char* msg) : std::runtime_error(msg) {}
+  public:
+    tec_skip_test(const char *msg) : std::runtime_error(msg) {}
 };
 #endif
 
 #ifdef __cplusplus
-template <typename T>
-std::string tec_to_string(const T& value) {
+template <typename T> std::string tec_to_string(const T &value) {
     std::stringstream ss;
     ss << value;
     return ss.str();
 }
-inline std::string tec_to_string(const char* value) {
-    if (value == NULL) return "(null)";
+inline std::string tec_to_string(const char *value) {
+    if (value == NULL)
+        return "(null)";
     return "\"" + std::string(value) + "\"";
 }
-inline std::string tec_to_string(char* value) {
-    return tec_to_string(const_cast<const char*>(value));
+inline std::string tec_to_string(char *value) {
+    return tec_to_string(const_cast<const char *>(value));
 }
-#define TEC_FMT(x, buf) \
+#define TEC_FMT(x, buf)                                                        \
     snprintf((buf), TEC_FMT_SLOT_SIZE, "%s", tec_to_string(x).c_str())
 
-#else  // C-ONLY: Original _Generic implementation
+#else
 #define TEC_FORMAT_VALUE_PAIR(x) TEC_FORMAT_SPEC(x), TEC_FORMAT_VALUE(x)
 
-#define TEC_FMT(x, buf) \
+#define TEC_FMT(x, buf)                                                        \
     snprintf((buf), TEC_TMP_STRBUF_LEN, TEC_FORMAT_VALUE_PAIR(x))
 
-#define TEC_TRY_BLOCK                                            \
-    for (int _tec_loop_once = (tec_context.jump_set = true, 1);  \
-         _tec_loop_once && setjmp(tec_context.jump_buffer) == 0; \
+#define TEC_TRY_BLOCK                                                          \
+    for (int _tec_loop_once = (tec_context.jump_set = true, 1);                \
+         _tec_loop_once && setjmp(tec_context.jump_buffer) == 0;               \
          _tec_loop_once = 0, tec_context.jump_set = false)
 
 /*
@@ -181,45 +202,45 @@ inline std::string tec_to_string(char* value) {
  * default case now uses (const void *)&x to bypass int-to-pointer-size
  * warnings.
  */
-#define TEC_FORMAT_SPEC(x)                                                \
-    _Generic((x),                                                         \
-        int8_t: "%hhd",                                                   \
-        int16_t: "%hd",                                                   \
-        int32_t: "%d",                                                    \
-        int64_t: "%ld", /* fuck this. lp64 vs llp64; portable C my ass */ \
-        uint8_t: "%hhu",                                                  \
-        uint16_t: "%hu",                                                  \
-        uint32_t: "%u",                                                   \
-        size_t: "%zu", /* fuck windows, fuck mingw/msvc-crt, fuck me */   \
-        float: "%f",                                                      \
-        double: "%lf",                                                    \
-        long double: "%Lf",                                               \
-        char*: "%s",                                                      \
-        const char*: "%s",                                                \
+#define TEC_FORMAT_SPEC(x)                                                     \
+    _Generic((x),                                                              \
+        int8_t: "%hhd",                                                        \
+        int16_t: "%hd",                                                        \
+        int32_t: "%d",                                                         \
+        int64_t: "%ld", /* fuck this. lp64 vs llp64; portable C my ass */      \
+        uint8_t: "%hhu",                                                       \
+        uint16_t: "%hu",                                                       \
+        uint32_t: "%u",                                                        \
+        size_t: "%zu", /* fuck windows, fuck mingw/msvc-crt, fuck me */        \
+        float: "%f",                                                           \
+        double: "%lf",                                                         \
+        long double: "%Lf",                                                    \
+        char *: "%s",                                                          \
+        const char *: "%s",                                                    \
         default: "%p")
 
-#define TEC_FORMAT_VALUE(x) \
-    _Generic((x),           \
-        int8_t: (x),        \
-        int16_t: (x),       \
-        int32_t: (x),       \
-        int64_t: (x),       \
-        uint8_t: (x),       \
-        uint16_t: (x),      \
-        uint32_t: (x),      \
-        size_t: (x),        \
-        float: (x),         \
-        double: (x),        \
-        long double: (x),   \
-        char*: (x),         \
-        const char*: (x),   \
-        default: (const void*)&(x))  // avoids int-to-pointer warning
+#define TEC_FORMAT_VALUE(x)                                                    \
+    _Generic((x),                                                              \
+        int8_t: (x),                                                           \
+        int16_t: (x),                                                          \
+        int32_t: (x),                                                          \
+        int64_t: (x),                                                          \
+        uint8_t: (x),                                                          \
+        uint16_t: (x),                                                         \
+        uint32_t: (x),                                                         \
+        size_t: (x),                                                           \
+        float: (x),                                                            \
+        double: (x),                                                           \
+        long double: (x),                                                      \
+        char *: (x),                                                           \
+        const char *: (x),                                                     \
+        default: (const void *)&(x)) // avoids int-to-pointer warning
 #endif
 
-#define TEC_POST_PASS()                        \
-    do {                                       \
-        tec_context.current_passed++;          \
-        tec_context.stats.passed_assertions++; \
+#define TEC_POST_PASS()                                                        \
+    do {                                                                       \
+        tec_context.current_passed++;                                          \
+        tec_context.stats.passed_assertions++;                                 \
     } while (0);
 
 #define TEC_SKIP(reason) _tec_skip_impl(reason, __LINE__)
@@ -290,8 +311,7 @@ inline std::string tec_to_string(char* value) {
                 "(line %d)\n" TEC_PRE_SPACE TEC_YELLOW TEC_LINE_CHAR TEC_RESET \
                 " Expected: %s and %s "                                        \
                 "to be within %g\n" TEC_PRE_SPACE TEC_YELLOW                   \
-                    TEC_LINE_CHAR TEC_RESET                                    \
-                " Actual:   they differ "                                      \
+                    TEC_LINE_CHAR TEC_RESET " Actual:   they differ "          \
                 "by %g\n",                                                     \
                 __LINE__, #a, #b, (double)_tol, _diff);                        \
             TEC_POST_FAIL();                                                   \
@@ -318,8 +338,7 @@ inline std::string tec_to_string(char* value) {
                      " Actual:   %s (%g)\n" TEC_PRE_SPACE TEC_YELLOW           \
                          TEC_LINE_CHAR TEC_RESET                               \
                      "      and: %s (%g)\n" TEC_PRE_SPACE TEC_YELLOW           \
-                         TEC_LINE_CHAR TEC_RESET                               \
-                     " Difference: %g ( > "                                    \
+                         TEC_LINE_CHAR TEC_RESET " Difference: %g ( > "        \
                      "tolerance %g)\n",                                        \
                      __LINE__, #a, #b, #a, (double)_a, #b, (double)_b, _diff,  \
                      _default_tol);                                            \
@@ -339,8 +358,8 @@ inline std::string tec_to_string(char* value) {
 #define TEC_ASSERT_STR_EQ(a, b)                                                \
     do {                                                                       \
         tec_context.stats.total_assertions++;                                  \
-        const char* _a = (a);                                                  \
-        const char* _b = (b);                                                  \
+        const char *_a = (a);                                                  \
+        const char *_b = (b);                                                  \
         int equal =                                                            \
             ((_a == NULL && _b == NULL) || (_a && _b && strcmp(_a, _b) == 0)); \
         if (!equal) {                                                          \
@@ -357,12 +376,12 @@ inline std::string tec_to_string(char* value) {
 #define TEC_ASSERT_NULL(ptr)                                                   \
     do {                                                                       \
         tec_context.stats.total_assertions++;                                  \
-        const void* _ptr = ptr;                                                \
+        const void *_ptr = ptr;                                                \
         if ((_ptr) != NULL) {                                                  \
             snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
                      TEC_PRE_SPACE TEC_RED TEC_CROSS_CHAR TEC_RESET            \
                      " Expected %s to be NULL, got %p (line %d)\n",            \
-                     #ptr, (const void*)(_ptr), __LINE__);                     \
+                     #ptr, (const void *)(_ptr), __LINE__);                    \
             TEC_POST_FAIL();                                                   \
         } else {                                                               \
             TEC_POST_PASS();                                                   \
@@ -372,7 +391,7 @@ inline std::string tec_to_string(char* value) {
 #define TEC_ASSERT_NOT_NULL(ptr)                                               \
     do {                                                                       \
         tec_context.stats.total_assertions++;                                  \
-        const void* _ptr = ptr;                                                \
+        const void *_ptr = ptr;                                                \
         if ((_ptr) == NULL) {                                                  \
             snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
                      TEC_PRE_SPACE TEC_RED TEC_CROSS_CHAR TEC_RESET            \
@@ -397,8 +416,8 @@ inline std::string tec_to_string(char* value) {
         if (!(_a op _b)) {                                                     \
             TEC_FMT(_a, tec_context.format_bufs[0]);                           \
             TEC_FMT(_b, tec_context.format_bufs[1]);                           \
-            const char* _op_str = #op;                                         \
-            const char* _inv_op_str =                                          \
+            const char *_op_str = #op;                                         \
+            const char *_inv_op_str =                                          \
                 ((strcmp(_op_str, ">") == 0)    ? "<="                         \
                  : (strcmp(_op_str, ">=") == 0) ? "<"                          \
                  : (strcmp(_op_str, "<") == 0)  ? ">="                         \
@@ -427,9 +446,9 @@ inline std::string tec_to_string(char* value) {
                      "(line %d).\n",                                           \
                      #statement, #exception_type, __LINE__);                   \
             TEC_POST_FAIL();                                                   \
-        } catch (const exception_type&) {                                      \
+        } catch (const exception_type &) {                                     \
             TEC_POST_PASS();                                                   \
-        } catch (const std::exception& e) {                                    \
+        } catch (const std::exception &e) {                                    \
             snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
                      TEC_PRE_SPACE TEC_RED TEC_CROSS_CHAR TEC_RESET            \
                      " Expected `%s` to throw `%s`, but it threw a "           \
@@ -447,23 +466,43 @@ inline std::string tec_to_string(char* value) {
     } while (0)
 #endif
 
-#define TEC(suite_name, test_name)                         \
-    static void tec_##suite_name_##test_name(void);        \
-    static void __attribute__((constructor))               \
-    tec_register_##suite_name_##test_name(void) {          \
-        tec_register(#suite_name, #test_name, __FILE__,    \
-                     tec_##suite_name_##test_name, false); \
-    }                                                      \
+#define TEC(suite_name, test_name)                                             \
+    static void tec_##suite_name_##test_name(void);                            \
+    static void __attribute__((constructor))                                   \
+    tec_register_##suite_name_##test_name(void) {                              \
+        tec_register(#suite_name, #test_name, __FILE__,                        \
+                     tec_##suite_name_##test_name, false);                     \
+    }                                                                          \
     static void tec_##suite_name_##test_name(void)
 
-#define TEC_XFAIL(suite_name, test_name)                  \
-    static void tec_##suite_name_##test_name(void);       \
-    static void __attribute__((constructor))              \
-    tec_register_##suite_name_##test_name(void) {         \
-        tec_register(#suite_name, #test_name, __FILE__,   \
-                     tec_##suite_name_##test_name, true); \
-    }                                                     \
+#define TEC_XFAIL(suite_name, test_name)                                       \
+    static void tec_##suite_name_##test_name(void);                            \
+    static void __attribute__((constructor))                                   \
+    tec_register_##suite_name_##test_name(void) {                              \
+        tec_register(#suite_name, #test_name, __FILE__,                        \
+                     tec_##suite_name_##test_name, true);                      \
+    }                                                                          \
     static void tec_##suite_name_##test_name(void)
+
+#define _TEC_FIXTURE_FACTORY(suite_name, fixture_type_token,                   \
+                             fixture_type_enum)                                \
+    static void tec_##fixture_type_token##_##suite_name(void);                 \
+    static void __attribute__((constructor))                                   \
+    tec_register_##fixture_type_token##_##suite_name(void) {                   \
+        tec_register_fixture(#suite_name,                                      \
+                             tec_##fixture_type_token##_##suite_name,          \
+                             fixture_type_enum);                               \
+    }                                                                          \
+    static void tec_##fixture_type_token##_##suite_name(void)
+
+#define TEC_SETUP(suite_name)                                                  \
+    _TEC_FIXTURE_FACTORY(suite_name, setup, TEC_SUITE_SETUP)
+#define TEC_TEARDOWN(suite_name)                                               \
+    _TEC_FIXTURE_FACTORY(suite_name, teardown, TEC_SUITE_TEARDOWN)
+#define TEC_TEST_SETUP(suite_name)                                             \
+    _TEC_FIXTURE_FACTORY(suite_name, test_setup, TEC_TEST_SETUP)
+#define TEC_TEST_TEARDOWN(suite_name)                                          \
+    _TEC_FIXTURE_FACTORY(suite_name, test_teardown, TEC_TEST_TEARDOWN)
 
 #ifdef TEC_IMPLEMENTATION
 #ifdef __cplusplus
@@ -478,12 +517,13 @@ inline void TEC_POST_FAIL(void) {
 #ifdef __cplusplus
     throw tec_assertion_failure(tec_context.failure_message);
 #else
-    if (tec_context.jump_set) longjmp(tec_context.jump_buffer, TEC_FAIL);
+    if (tec_context.jump_set)
+        longjmp(tec_context.jump_buffer, TEC_FAIL);
 #endif
 }
 
-inline void _tec_skip_impl(const char* reason, int line) {
-    const char* _reason = (reason);
+inline void _tec_skip_impl(const char *reason, int line) {
+    const char *_reason = (reason);
     snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN,
              TEC_PRE_SPACE TEC_YELLOW TEC_ARROW_CHAR TEC_RESET
              " Skipped: %s (line %d)\n",
@@ -491,13 +531,14 @@ inline void _tec_skip_impl(const char* reason, int line) {
 #ifdef __cplusplus
     throw tec_skip_test(tec_context.failure_message);
 #else
-    if (tec_context.jump_set) longjmp(tec_context.jump_buffer, TEC_SKIP_e);
+    if (tec_context.jump_set)
+        longjmp(tec_context.jump_buffer, TEC_SKIP_e);
 #endif
 }
 
-int tec_compare_entries(const void* a, const void* b) {
-    tec_entry_t* entry_a = (tec_entry_t*)a;
-    tec_entry_t* entry_b = (tec_entry_t*)b;
+int tec_compare_entries(const void *a, const void *b) {
+    tec_entry_t *entry_a = (tec_entry_t *)a;
+    tec_entry_t *entry_b = (tec_entry_t *)b;
     int suite_cmp = strcmp(entry_a->suite, entry_b->suite);
     if (suite_cmp != 0) {
         return suite_cmp;
@@ -505,7 +546,7 @@ int tec_compare_entries(const void* a, const void* b) {
     return strcmp(entry_a->name, entry_b->name);
 }
 
-void tec_register(const char* suite, const char* name, const char* file,
+void tec_register(const char *suite, const char *name, const char *file,
                   tec_func_t func, bool xfail) {
     if (!suite || !name || !file || !func) {
         fprintf(stderr,
@@ -518,15 +559,15 @@ void tec_register(const char* suite, const char* name, const char* file,
             tec_context.registry.tec_capacity == 0
                 ? 8
                 : tec_context.registry.tec_capacity * 2;
-        tec_entry_t* new_registry = (tec_entry_t*)realloc(
+        tec_entry_t *new_registry = (tec_entry_t *)realloc(
             tec_context.registry.entries,
             tec_context.registry.tec_capacity * sizeof(tec_entry_t));
 
         if (new_registry == NULL) {
-            fprintf(stderr, TEC_RED
-                    "Error: Failed to allocate memory for test "
-                    "registry\n" TEC_RESET);
+            fprintf(stderr, TEC_RED "Error: Failed to allocate memory for test "
+                                    "registry\n" TEC_RESET);
             free(tec_context.registry.entries);
+            free(tec_context.registry.suites);
             exit(1);
         }
 
@@ -541,7 +582,69 @@ void tec_register(const char* suite, const char* name, const char* file,
     tec_context.registry.tec_count++;
 }
 
-void tec_process_test_result(JUMP_CODES jump_val, const tec_entry_t* test) {
+void tec_register_fixture(const char *suite_name, tec_fixture_func_t func,
+                          tec_fixture_type fixture_type) {
+    tec_suite_t *suite = NULL;
+    for (size_t i = 0; i < tec_context.registry.suite_count; ++i) {
+        if (strcmp(tec_context.registry.suites[i].name, suite_name) == 0) {
+            suite = &tec_context.registry.suites[i];
+            break;
+        }
+    }
+    if (suite == NULL) {
+        if (tec_context.registry.suite_count >=
+            tec_context.registry.suite_capacity) {
+            tec_context.registry.suite_capacity =
+                tec_context.registry.suite_capacity == 0
+                    ? 4
+                    : tec_context.registry.suite_capacity * 2;
+            tec_suite_t *new_suites = (tec_suite_t *)realloc(
+                tec_context.registry.suites,
+                tec_context.registry.suite_capacity * sizeof(tec_suite_t));
+            if (!new_suites) {
+                fprintf(stderr,
+                        TEC_RED "Error: Failed to allocate memory for suite "
+                                "registry\n" TEC_RESET);
+                free(tec_context.registry.entries);
+                free(tec_context.registry.suites);
+                exit(1);
+            }
+            tec_context.registry.suites = new_suites;
+        }
+        suite =
+            &tec_context.registry.suites[tec_context.registry.suite_count++];
+        memset(suite, 0, sizeof(tec_suite_t));
+        suite->name = suite_name;
+    }
+
+    switch (fixture_type) {
+    case TEC_SUITE_SETUP:
+        suite->setup = func;
+        break;
+    case TEC_SUITE_TEARDOWN:
+        suite->teardown = func;
+        break;
+    case TEC_TEST_SETUP:
+        suite->test_setup = func;
+        break;
+    case TEC_TEST_TEARDOWN:
+        suite->test_teardown = func;
+        break;
+    }
+}
+
+tec_suite_t *tec_find_suite(const char *name) {
+    if (!name)
+        return NULL;
+    for (size_t i = 0; i < tec_context.registry.suite_count; ++i) {
+        if (strcmp(tec_context.registry.suites[i].name, name) == 0) {
+            return &tec_context.registry.suites[i];
+        }
+    }
+    return NULL;
+}
+
+void tec_process_test_result(JUMP_CODES jump_val, const tec_entry_t *test) {
     bool has_failed = (jump_val == TEC_FAIL || tec_context.current_failed > 0);
     if (jump_val == TEC_SKIP_e) {
         tec_context.stats.skipped_tests++;
@@ -578,35 +681,33 @@ void tec_process_test_result(JUMP_CODES jump_val, const tec_entry_t* test) {
     }
 }
 
-void tec_print_usage(const char* prog_name) {
+void tec_print_usage(const char *prog_name) {
     printf("Usage: %s [options]\n", prog_name);
     printf("Options:\n");
-    printf(
-        "  -f, --filter <pattern>  Run tests where the name contains the given "
-        "pattern.\n"
-        "                          By default, matches against "
-        "'suite.name'.\n");
-    printf(
-        "  --file                  When present, changes the behavior of '-f' "
-        "to match against\n"
-        "                          the test's filename instead.\n");
+    printf("  -f, --filter <pattern>  Run tests where the name contains the "
+           "given "
+           "pattern.\n"
+           "                          By default, matches against "
+           "'suite.name'.\n");
+    printf("  --file                  When present, changes the behavior of "
+           "'-f' "
+           "to match against\n"
+           "                          the test's filename instead.\n");
     printf("  -h, --help              Display this help message.\n\n");
     printf("Examples:\n");
-    printf(
-        "  %s -f 'math'             # Run all tests with 'Math' in their "
-        "name\n",
-        prog_name);
-    printf(
-        "  %s --file -f 'math_utils.c'  # Run all tests in files with "
-        "'_tests.c' in the name\n",
-        prog_name);
+    printf("  %s -f 'math'             # Run all tests with 'Math' in their "
+           "name\n",
+           prog_name);
+    printf("  %s --file -f 'math_utils.c'  # Run all tests in files with "
+           "'_tests.c' in the name\n",
+           prog_name);
 }
 
-int tec_parse_args(int argc, char** argv) {
+int tec_parse_args(int argc, char **argv) {
     if (argc < 2) {
         return 0;
     }
-    tec_context.options.filters = (char**)calloc(argc, sizeof(char*));
+    tec_context.options.filters = (char **)calloc(argc, sizeof(char *));
     if (tec_context.options.filters == NULL) {
         fprintf(stderr,
                 TEC_RED "Failed to allocate memory for filters\n" TEC_RESET);
@@ -620,9 +721,8 @@ int tec_parse_args(int argc, char** argv) {
                 tec_context.options
                     .filters[tec_context.options.filter_count++] = argv[i];
             } else {
-                fprintf(
-                    stderr, TEC_RED
-                    "Error: Filter option requires an argument.\n" TEC_RESET);
+                fprintf(stderr, TEC_RED "Error: Filter option requires an "
+                                        "argument.\n" TEC_RESET);
                 return 1;
             }
         } else if (strcmp(argv[i], "--file") == 0) {
@@ -641,9 +741,9 @@ int tec_parse_args(int argc, char** argv) {
     return 0;
 }
 
-bool tec_should_run(const tec_entry_t* test) {
+bool tec_should_run(const tec_entry_t *test) {
     char full_name_buffer[TEC_TMP_STRBUF_LEN];
-    const char* target_string;
+    const char *target_string;
 
     if (tec_context.options.filter_by_filename) {
         target_string = test->file;
@@ -662,11 +762,16 @@ bool tec_should_run(const tec_entry_t* test) {
     return false;
 }
 
-int tec_run_all(int argc, char** argv) {
+int tec_run_all(int argc, char **argv) {
     int result = 0;
-    const char* current_suite = NULL;
+    const char *current_suite = NULL;
+    const tec_suite_t *current_suite_ptr = NULL;
+    bool suite_setup_failed = false;
+    bool test_setup_failed = false;
+    bool has_printed_test_setup_failure = false;
     result = tec_parse_args(argc, argv);
-    if (result) goto cleanup;
+    if (result)
+        goto cleanup;
     printf(TEC_BLUE "================================\n");
     printf("         C Test Runner          \n");
     printf("================================" TEC_RESET "\n");
@@ -675,7 +780,7 @@ int tec_run_all(int argc, char** argv) {
           sizeof(tec_entry_t), tec_compare_entries);
 
     for (size_t i = 0; i < tec_context.registry.tec_count; ++i) {
-        tec_entry_t* test = &tec_context.registry.entries[i];
+        tec_entry_t *test = &tec_context.registry.entries[i];
 
         if (tec_context.options.filter_count != 0 && !tec_should_run(test)) {
             tec_context.stats.filtered_tests++;
@@ -684,17 +789,38 @@ int tec_run_all(int argc, char** argv) {
 
         if (current_suite == NULL || strcmp(current_suite, test->suite) != 0) {
             current_suite = test->suite;
-            const char* display_name = strstr(test->file, "tests/");
+            const char *display_name = strstr(test->file, "tests/");
+            if (current_suite_ptr && current_suite_ptr->teardown &&
+                !suite_setup_failed) {
+#ifdef __cplusplus
+                try {
+                    current_suite_ptr->teardown();
+                } catch (...) {
+                    printf(TEC_PRE_SPACE_SHORT TEC_RED TEC_CROSS_CHAR TEC_RESET
+                           " Suite Teardown Failed!\n");
+                    printf("%s", tec_context.failure_message);
+                }
+#else
+                tec_context.jump_set = true;
+                if (setjmp(tec_context.jump_buffer) == TEC_INITIAL) {
+                    current_suite_ptr->teardown();
+                } else {
+                    printf(TEC_PRE_SPACE_SHORT TEC_RED TEC_CROSS_CHAR TEC_RESET
+                           " Suite Teardown Failed!\n");
+                    printf("%s", tec_context.failure_message);
+                }
+                tec_context.jump_set = false;
+#endif
+            }
             if (display_name == NULL) {
                 display_name = strstr(test->file, "tests\\");
             }
-
             if (display_name) {
                 display_name = display_name + 6;
             } else {
-                const char* f_slash = strrchr(test->file, '/');
-                const char* b_slash = strrchr(test->file, '\\');
-                const char* last_slash =
+                const char *f_slash = strrchr(test->file, '/');
+                const char *b_slash = strrchr(test->file, '\\');
+                const char *last_slash =
                     (f_slash > b_slash) ? f_slash : b_slash;
 
                 display_name = last_slash ? last_slash + 1 : test->file;
@@ -702,44 +828,139 @@ int tec_run_all(int argc, char** argv) {
 
             printf(TEC_MAGENTA "\nSUITE: %s" TEC_RESET " (%s)\n", current_suite,
                    display_name);
+
+            current_suite_ptr = tec_find_suite(current_suite);
+            suite_setup_failed = false;
+            test_setup_failed = false;
+            has_printed_test_setup_failure = false;
+            if (current_suite_ptr && current_suite_ptr->setup) {
+#ifdef __cplusplus
+                try {
+                    current_suite_ptr->setup();
+                } catch (...) {
+                    suite_setup_failed = true;
+                    printf(TEC_PRE_SPACE_SHORT TEC_RED TEC_CROSS_CHAR TEC_RESET
+                           " Suite Setup Failed!\n");
+                    printf("%s", tec_context.failure_message);
+                }
+#else
+                tec_context.jump_set = true;
+                if (setjmp(tec_context.jump_buffer) == TEC_INITIAL) {
+                    current_suite_ptr->setup();
+                } else {
+                    suite_setup_failed = true;
+                    printf(TEC_PRE_SPACE_SHORT TEC_RED TEC_CROSS_CHAR TEC_RESET
+                           " Suite Setup Failed!\n");
+                    printf("%s", tec_context.failure_message);
+                }
+                tec_context.jump_set = false;
+#endif
+            }
+        }
+
+        if (suite_setup_failed) {
+            tec_context.stats.skipped_tests++;
+            printf(TEC_PRE_SPACE_SHORT TEC_YELLOW TEC_ARROW_CHAR TEC_RESET
+                   " %s (skipped due to setup failure)\n",
+                   test->name);
+            continue;
         }
 
         tec_context.current_passed = 0;
         tec_context.current_failed = 0;
         tec_context.failure_message[0] = '\0';
-        tec_context.stats.ran_tests++;
+        test_setup_failed = false;
 
+        if (current_suite_ptr && current_suite_ptr->test_setup) {
 #ifdef __cplusplus
-        try {
-            test->func();
-            tec_process_test_result(TEC_INITIAL, test);
-        } catch (const tec_assertion_failure&) {
-            tec_process_test_result(TEC_FAIL, test);
-        } catch (const tec_skip_test&) {
-            tec_process_test_result(TEC_SKIP_e, test);
-        } catch (const std::exception& e) {
-            tec_context.current_failed++;
-            snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN,
-                     TEC_PRE_SPACE_SHORT TEC_RED TEC_CROSS_CHAR TEC_RESET
-                     " Test threw an unhandled std::exception: %s\n",
-                     e.what());
-            tec_process_test_result(TEC_FAIL, test);
-        } catch (...) {
-            tec_context.current_failed++;
-            snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN,
-                     TEC_PRE_SPACE_SHORT TEC_RED TEC_CROSS_CHAR TEC_RESET
-                     " Test threw an unknown C++ exception.\n");
-            tec_process_test_result(TEC_FAIL, test);
-        }
+            try {
+                current_suite_ptr->test_setup();
+            } catch (...) {
+                test_setup_failed = true;
+            }
 #else
-        tec_context.jump_set = true;
-        int jump_val = setjmp(tec_context.jump_buffer);
-        if (jump_val == TEC_INITIAL) {
-            test->func();
-        }
-        tec_context.jump_set = false;
-        tec_process_test_result((JUMP_CODES)jump_val, test);
+            tec_context.jump_set = true;
+            if (setjmp(tec_context.jump_buffer) == TEC_INITIAL) {
+                current_suite_ptr->test_setup();
+            } else {
+                test_setup_failed = true;
+            }
+            tec_context.jump_set = false;
 #endif
+        }
+        if (test_setup_failed) {
+            tec_context.stats.skipped_tests++;
+            if (!has_printed_test_setup_failure) {
+                printf(TEC_PRE_SPACE_SHORT TEC_RED TEC_CROSS_CHAR TEC_RESET
+                       " Test Setup Failed!\n");
+                printf("%s", tec_context.failure_message);
+                has_printed_test_setup_failure = true;
+            }
+            printf(TEC_PRE_SPACE_SHORT TEC_YELLOW TEC_ARROW_CHAR TEC_RESET
+                   " %s (skipped due to test setup failure)\n",
+                   test->name);
+        } else {
+            tec_context.stats.ran_tests++;
+#ifdef __cplusplus
+            try {
+                test->func();
+                tec_process_test_result(TEC_INITIAL, test);
+            } catch (const tec_assertion_failure &) {
+                tec_process_test_result(TEC_FAIL, test);
+            } catch (const tec_skip_test &) {
+                tec_process_test_result(TEC_SKIP_e, test);
+            } catch (const std::exception &e) {
+                tec_context.current_failed++;
+                snprintf(tec_context.failure_message,
+                         TEC_MAX_FAILURE_MESSAGE_LEN,
+                         TEC_PRE_SPACE_SHORT TEC_RED TEC_CROSS_CHAR TEC_RESET
+                         " Test threw an unhandled std::exception: %s\n",
+                         e.what());
+                tec_process_test_result(TEC_FAIL, test);
+            } catch (...) {
+                tec_context.current_failed++;
+                snprintf(tec_context.failure_message,
+                         TEC_MAX_FAILURE_MESSAGE_LEN,
+                         TEC_PRE_SPACE_SHORT TEC_RED TEC_CROSS_CHAR TEC_RESET
+                         " Test threw an unknown C++ exception.\n");
+                tec_process_test_result(TEC_FAIL, test);
+            }
+#else
+            tec_context.jump_set = true;
+            int jump_val = setjmp(tec_context.jump_buffer);
+            if (jump_val == TEC_INITIAL) {
+                test->func();
+            }
+            tec_context.jump_set = false;
+            tec_process_test_result((JUMP_CODES)jump_val, test);
+#endif
+            if (current_suite_ptr && current_suite_ptr->test_teardown) {
+#ifdef __cplusplus
+                try {
+                    current_suite_ptr->test_teardown();
+                } catch (...) {
+                    printf(TEC_PRE_SPACE_SHORT TEC_RED TEC_CROSS_CHAR TEC_RESET
+                           " Test Teardown Failed!\n");
+                    printf("%s", tec_context.failure_message);
+                }
+#else
+                tec_context.jump_set = true;
+                if (setjmp(tec_context.jump_buffer) == TEC_INITIAL) {
+                    current_suite_ptr->test_teardown();
+                } else {
+                    printf(TEC_PRE_SPACE_SHORT TEC_RED TEC_CROSS_CHAR TEC_RESET
+                           " Test Teardown Failed!\n");
+                    printf("%s", tec_context.failure_message);
+                }
+                tec_context.jump_set = false;
+#endif
+            }
+        }
+    }
+
+    if (current_suite_ptr && current_suite_ptr->teardown &&
+        !suite_setup_failed) {
+        current_suite_ptr->teardown();
     }
 
     printf("\n" TEC_BLUE "================================" TEC_RESET "\n");
@@ -767,7 +988,7 @@ int tec_run_all(int argc, char** argv) {
                    " tests were filtered out by the following criteria:\n",
                    tec_context.stats.filtered_tests);
 
-            const char* prefix = tec_context.options.filter_by_filename
+            const char *prefix = tec_context.options.filter_by_filename
                                      ? TEC_PRE_SPACE_SHORT "--file -f"
                                      : TEC_PRE_SPACE_SHORT "-f";
             for (size_t i = 0; i < tec_context.options.filter_count; ++i) {
@@ -788,16 +1009,17 @@ int tec_run_all(int argc, char** argv) {
 
 cleanup:
     free(tec_context.registry.entries);
+    free(tec_context.registry.suites);
     free(tec_context.options.filters);
     memset(&tec_context, 0, sizeof(tec_context_t));
     return result;
 }
 
-#define TEC_MAIN() \
-    int main(int argc, char** argv) { return tec_run_all(argc, argv); }
+#define TEC_MAIN()                                                             \
+    int main(int argc, char **argv) { return tec_run_all(argc, argv); }
 
 #ifdef __cplusplus
 }
 #endif
-#endif  // TEC_IMPLEMENTATION
-#endif  // TEC_H
+#endif // TEC_IMPLEMENTATION
+#endif // TEC_H
