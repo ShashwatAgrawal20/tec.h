@@ -762,6 +762,39 @@ bool tec_should_run(const tec_entry_t *test) {
     return false;
 }
 
+bool _fixture_exec_helper(tec_fixture_func_t func, const char *token) {
+    bool has_failed = false;
+    bool should_print = token == NULL ? false : true;
+#ifdef __cplusplus
+    try {
+        func();
+    } catch (...) {
+        if (should_print) {
+            printf(TEC_PRE_SPACE_SHORT TEC_RED TEC_CROSS_CHAR TEC_RESET
+                   " %s Failed!\n",
+                   token);
+            printf("%s", tec_context.failure_message);
+        }
+        has_failed = true;
+    }
+#else
+    tec_context.jump_set = true;
+    if (setjmp(tec_context.jump_buffer) == TEC_INITIAL) {
+        func();
+    } else {
+        if (should_print) {
+            printf(TEC_PRE_SPACE_SHORT TEC_RED TEC_CROSS_CHAR TEC_RESET
+                   " %s Failed!\n",
+                   token);
+            printf("%s", tec_context.failure_message);
+        }
+        has_failed = true;
+    }
+    tec_context.jump_set = false;
+#endif
+    return has_failed;
+}
+
 int tec_run_all(int argc, char **argv) {
     int result = 0;
     const char *current_suite = NULL;
@@ -792,25 +825,8 @@ int tec_run_all(int argc, char **argv) {
             const char *display_name = strstr(test->file, "tests/");
             if (current_suite_ptr && current_suite_ptr->teardown &&
                 !suite_setup_failed) {
-#ifdef __cplusplus
-                try {
-                    current_suite_ptr->teardown();
-                } catch (...) {
-                    printf(TEC_PRE_SPACE_SHORT TEC_RED TEC_CROSS_CHAR TEC_RESET
-                           " Suite Teardown Failed!\n");
-                    printf("%s", tec_context.failure_message);
-                }
-#else
-                tec_context.jump_set = true;
-                if (setjmp(tec_context.jump_buffer) == TEC_INITIAL) {
-                    current_suite_ptr->teardown();
-                } else {
-                    printf(TEC_PRE_SPACE_SHORT TEC_RED TEC_CROSS_CHAR TEC_RESET
-                           " Suite Teardown Failed!\n");
-                    printf("%s", tec_context.failure_message);
-                }
-                tec_context.jump_set = false;
-#endif
+                _fixture_exec_helper(current_suite_ptr->teardown,
+                                     "Suite Teardown");
             }
             if (display_name == NULL) {
                 display_name = strstr(test->file, "tests\\");
@@ -834,27 +850,8 @@ int tec_run_all(int argc, char **argv) {
             test_setup_failed = false;
             has_printed_test_setup_failure = false;
             if (current_suite_ptr && current_suite_ptr->setup) {
-#ifdef __cplusplus
-                try {
-                    current_suite_ptr->setup();
-                } catch (...) {
-                    suite_setup_failed = true;
-                    printf(TEC_PRE_SPACE_SHORT TEC_RED TEC_CROSS_CHAR TEC_RESET
-                           " Suite Setup Failed!\n");
-                    printf("%s", tec_context.failure_message);
-                }
-#else
-                tec_context.jump_set = true;
-                if (setjmp(tec_context.jump_buffer) == TEC_INITIAL) {
-                    current_suite_ptr->setup();
-                } else {
-                    suite_setup_failed = true;
-                    printf(TEC_PRE_SPACE_SHORT TEC_RED TEC_CROSS_CHAR TEC_RESET
-                           " Suite Setup Failed!\n");
-                    printf("%s", tec_context.failure_message);
-                }
-                tec_context.jump_set = false;
-#endif
+                suite_setup_failed = _fixture_exec_helper(
+                    current_suite_ptr->setup, "Suite Setup");
             }
         }
 
@@ -872,21 +869,8 @@ int tec_run_all(int argc, char **argv) {
         test_setup_failed = false;
 
         if (current_suite_ptr && current_suite_ptr->test_setup) {
-#ifdef __cplusplus
-            try {
-                current_suite_ptr->test_setup();
-            } catch (...) {
-                test_setup_failed = true;
-            }
-#else
-            tec_context.jump_set = true;
-            if (setjmp(tec_context.jump_buffer) == TEC_INITIAL) {
-                current_suite_ptr->test_setup();
-            } else {
-                test_setup_failed = true;
-            }
-            tec_context.jump_set = false;
-#endif
+            test_setup_failed =
+                _fixture_exec_helper(current_suite_ptr->test_setup, NULL);
         }
         if (test_setup_failed) {
             tec_context.stats.skipped_tests++;
@@ -935,32 +919,15 @@ int tec_run_all(int argc, char **argv) {
             tec_process_test_result((JUMP_CODES)jump_val, test);
 #endif
             if (current_suite_ptr && current_suite_ptr->test_teardown) {
-#ifdef __cplusplus
-                try {
-                    current_suite_ptr->test_teardown();
-                } catch (...) {
-                    printf(TEC_PRE_SPACE_SHORT TEC_RED TEC_CROSS_CHAR TEC_RESET
-                           " Test Teardown Failed!\n");
-                    printf("%s", tec_context.failure_message);
-                }
-#else
-                tec_context.jump_set = true;
-                if (setjmp(tec_context.jump_buffer) == TEC_INITIAL) {
-                    current_suite_ptr->test_teardown();
-                } else {
-                    printf(TEC_PRE_SPACE_SHORT TEC_RED TEC_CROSS_CHAR TEC_RESET
-                           " Test Teardown Failed!\n");
-                    printf("%s", tec_context.failure_message);
-                }
-                tec_context.jump_set = false;
-#endif
+                _fixture_exec_helper(current_suite_ptr->test_teardown,
+                                     "Test Teardown");
             }
         }
     }
 
     if (current_suite_ptr && current_suite_ptr->teardown &&
         !suite_setup_failed) {
-        current_suite_ptr->teardown();
+        _fixture_exec_helper(current_suite_ptr->teardown, "Suite Teardown");
     }
 
     printf("\n" TEC_BLUE "================================" TEC_RESET "\n");
