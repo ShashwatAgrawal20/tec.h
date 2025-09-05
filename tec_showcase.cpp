@@ -7,15 +7,15 @@
 #include <memory>
 #include <vector>
 TEC(cpp_Style, Vector) {
-    std::vector<int> my_vector(100);  // THIS WILL AUTOFREE CAUSE OF RAII(dest)
+    std::vector<int> my_vector(100); // THIS WILL AUTOFREE CAUSE OF RAII(dest)
 
     // Dynamically allocated int (manual memory management).
     // We must remember to delete it to avoid a memory leak.
-    int* xxx = new int;
+    int *xxx = new int;
     *xxx = 6969;
     try {
         TEC_ASSERT_EQ(my_vector.size(), (size_t)100);
-        TEC_ASSERT_EQ(*xxx, 69);  // FAILING CASE
+        TEC_ASSERT_EQ(*xxx, 69); // FAILING CASE
     } catch (...) {
         std::cout << "    womp womp!" << std::endl;
         delete xxx;
@@ -120,7 +120,7 @@ TEC(mathutils, division) {
 }
 
 TEC(mathutils, factorial) {
-    TEC_ASSERT_EQ(factorial(0), 1);  // Edge case: 0! = 1
+    TEC_ASSERT_EQ(factorial(0), 1); // Edge case: 0! = 1
     TEC_ASSERT_EQ(factorial(5), 120);
     TEC_ASSERT_EQ(factorial(10), 3628800);
 
@@ -134,4 +134,27 @@ TEC(logic, booleans_act_right) {
     TEC_ASSERT_EQ(1 == 1, 1);
     TEC_ASSERT_NE(1 == 0, 1);
 }
+
+#ifdef __cplusplus
+#include <stdexcept>
+#endif
+
+void function_that_throws() {
+    throw std::runtime_error("Something went wrong!");
+}
+
+void function_that_doesnt_throw() {}
+
+TEC(Exceptions, CatchesCorrectType) {
+    TEC_ASSERT_THROWS(function_that_throws(), std::runtime_error);
+}
+
+TEC(Exceptions, FailsOnWrongType) {
+    TEC_ASSERT_THROWS(function_that_throws(), std::invalid_argument);
+}
+
+TEC(Exceptions, FailsWhenNoThrow) {
+    TEC_ASSERT_THROWS(function_that_doesnt_throw(), std::runtime_error);
+}
+
 TEC_MAIN()

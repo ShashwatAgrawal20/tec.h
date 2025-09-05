@@ -86,7 +86,7 @@ TEC(mathutils, division) {
 }
 
 TEC(mathutils, factorial) {
-    TEC_ASSERT_EQ(factorial(0), 1);  // Edge case: 0! = 1
+    TEC_ASSERT_EQ(factorial(0), 1); // Edge case: 0! = 1
     TEC_ASSERT_EQ(factorial(5), 120);
     TEC_ASSERT_EQ(factorial(10), 3628800);
 

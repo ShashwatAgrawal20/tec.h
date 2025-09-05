@@ -26,6 +26,7 @@
 #define TEC_H
 
 #include <float.h>
+#include <inttypes.h>
 #include <setjmp.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -73,6 +74,10 @@ extern "C" {
 #define TEC_FMT_SLOT_SIZE TEC_TMP_STRBUF_LEN
 
 #define _TEC_FABS(x) ((x) < 0.0 ? -(x) : (x))
+
+#if defined(UINTPTR_MAX) && UINTPTR_MAX == UINT64_MAX
+#define TEC_64BIT_SYSTEM_SIZE_T_CONFLICT_UINT64
+#endif
 
 typedef enum { TEC_INITIAL, TEC_FAIL, TEC_SKIP_e } JUMP_CODES;
 
@@ -167,6 +172,13 @@ class tec_skip_test : public std::runtime_error {
 #endif
 
 #ifdef __cplusplus
+/* FUCK STRINGSTREAM.
+ * We know the "right" way to do this is with std::format from C++20.
+ * BUT, that would force every poor bastard using this library to add
+ * `-std=c++20`, since most compilers still default to older standards.
+ * So, for maximum drop-in compatibility, we're stuck with this slow-ass thing.
+ * It's a shit trade-off, but it makes the library easier to use.
+ */
 template <typename T> std::string tec_to_string(const T &value) {
     std::stringstream ss;
     ss << value;
@@ -202,15 +214,17 @@ inline std::string tec_to_string(char *value) {
  * default case now uses (const void *)&x to bypass int-to-pointer-size
  * warnings.
  */
+
+#ifdef TEC_64BIT_SYSTEM_SIZE_T_CONFLICT_UINT64
 #define TEC_FORMAT_SPEC(x)                                                     \
     _Generic((x),                                                              \
-        int8_t: "%hhd",                                                        \
-        int16_t: "%hd",                                                        \
-        int32_t: "%d",                                                         \
-        int64_t: "%ld", /* fuck this. lp64 vs llp64; portable C my ass */      \
-        uint8_t: "%hhu",                                                       \
-        uint16_t: "%hu",                                                       \
-        uint32_t: "%u",                                                        \
+        int8_t: "%" PRId8,                                                     \
+        int16_t: "%" PRId16,                                                   \
+        int32_t: "%" PRId32,                                                   \
+        int64_t: "%" PRId64, /* fuck this. lp64 vs llp64; portable C my ass */ \
+        uint8_t: "%" PRIu8,                                                    \
+        uint16_t: "%" PRIu16,                                                  \
+        uint32_t: "%" PRIu32,                                                  \
         size_t: "%zu", /* fuck windows, fuck mingw/msvc-crt, fuck me */        \
         float: "%f",                                                           \
         double: "%lf",                                                         \
@@ -235,6 +249,43 @@ inline std::string tec_to_string(char *value) {
         char *: (x),                                                           \
         const char *: (x),                                                     \
         default: (const void *)&(x)) // avoids int-to-pointer warning
+#else
+#define TEC_FORMAT_SPEC(x)                                                     \
+    _Generic((x),                                                              \
+        int8_t: "%" PRId8,                                                     \
+        int16_t: "%" PRId16,                                                   \
+        int32_t: "%" PRId32,                                                   \
+        int64_t: "%" PRId64, /* fuck this. lp64 vs llp64; portable C my ass */ \
+        uint8_t: "%" PRIu8,                                                    \
+        uint16_t: "%" PRIu16,                                                  \
+        uint32_t: "%" PRIu32,                                                  \
+        uint64_t: "%" PRIu64, /* 32 bit systems */                             \
+        size_t: "%zu",        /* fuck windows, fuck mingw/msvc-crt, fuck me */ \
+        float: "%f",                                                           \
+        double: "%lf",                                                         \
+        long double: "%Lf",                                                    \
+        char *: "%s",                                                          \
+        const char *: "%s",                                                    \
+        default: "%p")
+
+#define TEC_FORMAT_VALUE(x)                                                    \
+    _Generic((x),                                                              \
+        int8_t: (x),                                                           \
+        int16_t: (x),                                                          \
+        int32_t: (x),                                                          \
+        int64_t: (x),                                                          \
+        uint8_t: (x),                                                          \
+        uint16_t: (x),                                                         \
+        uint32_t: (x),                                                         \
+        uint64_t: (x), /* 32 bit systems */                                    \
+        size_t: (x),                                                           \
+        float: (x),                                                            \
+        double: (x),                                                           \
+        long double: (x),                                                      \
+        char *: (x),                                                           \
+        const char *: (x),                                                     \
+        default: (const void *)&(x)) // avoids int-to-pointer warning
+#endif
 #endif
 
 #define TEC_POST_PASS()                                                        \
@@ -418,11 +469,9 @@ inline std::string tec_to_string(char *value) {
             TEC_FMT(_b, tec_context.format_bufs[1]);                           \
             const char *_op_str = #op;                                         \
             const char *_inv_op_str =                                          \
-                ((strcmp(_op_str, ">") == 0)    ? "<="                         \
-                 : (strcmp(_op_str, ">=") == 0) ? "<"                          \
-                 : (strcmp(_op_str, "<") == 0)  ? ">="                         \
-                 : (strcmp(_op_str, "<=") == 0) ? ">"                          \
-                                                : "???");                      \
+                (_op_str[0] == '>')   ? ((_op_str[1] == '=') ? "<" : "<=")     \
+                : (_op_str[0] == '<') ? ((_op_str[1] == '=') ? ">" : ">=")     \
+                                      : "???";                                 \
             snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
                      TEC_PRE_SPACE TEC_RED TEC_CROSS_CHAR TEC_RESET            \
                      " Expected %s %s %s, got %s %s %s (line %d)\n",           \
