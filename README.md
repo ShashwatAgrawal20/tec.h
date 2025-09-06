@@ -23,6 +23,7 @@ your way so you can just write tests. Zero-setup unit testing is just one `#incl
 - [Assertion API](#assertion-api)
 - [Advanced Usage](#advanced-usage)
   - [Filtering Tests](#filtering-tests)
+  - [Test Fixtures (Setup & Teardown)](#test-fixtures-setup--teardown)
   - [Test Control](#test-control)
     - [Skipping Tests](#skipping-tests)
     - [Expected Failures](#expected-failures)
@@ -32,6 +33,7 @@ your way so you can just write tests. Zero-setup unit testing is just one `#incl
     - [C++: try-catch](#c-trycatch)
 - [C++ Integration](#c-integration)
   - [Exception Handling](#exception-handling)
+  - [Testing for Exceptions](#testing-for-exceptions)
   - [Resource Management (RAII)](#resource-management-raii)
 - [Example Project & Makefile](#example-project--makefile)
 
@@ -131,26 +133,29 @@ TEC(memory, test_allocation) { /* ... */ }
 
 The library provides a straightforward set of assertions. On failure, it prints the file, line number, and the failed expression.
 
-| Macro                         | Description                                      | Example Usage                            |
-|-------------------------------|--------------------------------------------------|------------------------------------------|
-| `TEC_ASSERT(expression)`      | Asserts that `expression` is true.               | `TEC_ASSERT(count > 0);`                 |
-| **Equality & Inequality**     |                                                  |                                          |
-| `TEC_ASSERT_EQ(a, b)`         | Asserts that `a == b`.                           | `TEC_ASSERT_EQ(result, 42);`             |
-| `TEC_ASSERT_NE(a, b)`         | Asserts that `a != b`.                           | `TEC_ASSERT_NE(id1, id2);`               |
-| **Comparison Operators**      |                                                  |                                          |
-| `TEC_ASSERT_GT(a, b)`         | Asserts that `a > b`.                            | `TEC_ASSERT_GT(score, min_score);`       |
-| `TEC_ASSERT_GE(a, b)`         | Asserts that `a >= b`.                           | `TEC_ASSERT_GE(level, threshold);`       |
-| `TEC_ASSERT_LT(a, b)`         | Asserts that `a < b`.                            | `TEC_ASSERT_LT(temp, limit);`            |
-| `TEC_ASSERT_LE(a, b)`         | Asserts that `a <= b`.                           | `TEC_ASSERT_LE(retries, max_retries);`   |
-| **Floating-Point**            |                                                  |                                          |
-| `TEC_ASSERT_FLOAT_EQ(a, b)`   | Asserts floating-point equality with tolerance.  | `TEC_ASSERT_FLOAT_EQ(result, 3.14159);`  |
-| `TEC_ASSERT_NEAR(a, b, tol)`  | Asserts values are within tolerance.             | `TEC_ASSERT_NEAR(actual, 1.0, 0.001);`   |
-| **String & Pointer**          |                                                  |                                          |
-| `TEC_ASSERT_STR_EQ(a, b)`     | Asserts that two strings are equal.              | `TEC_ASSERT_STR_EQ(msg, "OK");`          |
-| `TEC_ASSERT_NULL(ptr)`        | Asserts that pointer is `NULL`.                  | `TEC_ASSERT_NULL(response);`             |
-| `TEC_ASSERT_NOT_NULL(ptr)`    | Asserts that pointer is not `NULL`.              | `TEC_ASSERT_NOT_NULL(data);`             |
-| **Test Control**              |                                                  |                                          |
-| `TEC_SKIP(reason)`            | Skips the current test and reports reason.       | `TEC_SKIP("Not implemented yet.");`      |
+| Macro                           | Description                                       | Example Usage                                    |
+|---------------------------------|---------------------------------------------------|--------------------------------------------------|
+| `TEC_ASSERT(expression)`        | Asserts that `expression` is true.                | `TEC_ASSERT(count > 0);`                         |
+| **Equality & Inequality**       |                                                   |                                                  |
+| `TEC_ASSERT_EQ(a, b)`           | Asserts that `a == b`.                            | `TEC_ASSERT_EQ(result, 42);`                     |
+| `TEC_ASSERT_NE(a, b)`           | Asserts that `a != b`.                            | `TEC_ASSERT_NE(id1, id2);`                       |
+| **Comparison Operators**        |                                                   |                                                  |
+| `TEC_ASSERT_GT(a, b)`           | Asserts that `a > b`.                             | `TEC_ASSERT_GT(score, min_score);`               |
+| `TEC_ASSERT_GE(a, b)`           | Asserts that `a >= b`.                            | `TEC_ASSERT_GE(level, threshold);`               |
+| `TEC_ASSERT_LT(a, b)`           | Asserts that `a < b`.                             | `TEC_ASSERT_LT(temp, limit);`                    |
+| `TEC_ASSERT_LE(a, b)`           | Asserts that `a <= b`.                            | `TEC_ASSERT_LE(retries, max_retries);`           |
+| **Floating-Point**              |                                                   |                                                  |
+| `TEC_ASSERT_FLOAT_EQ(a, b)`     | Asserts floating-point equality with tolerance.   | `TEC_ASSERT_FLOAT_EQ(result, 3.14159);`          |
+| `TEC_ASSERT_NEAR(a, b, tol)`    | Asserts values are within tolerance.              | `TEC_ASSERT_NEAR(actual, 1.0, 0.001);`           |
+| **String & Pointer**            |                                                   |                                                  |
+| `TEC_ASSERT_STR_EQ(a, b)`       | Asserts that two strings are equal.               | `TEC_ASSERT_STR_EQ(msg, "OK");`                  |
+| `TEC_ASSERT_NULL(ptr)`          | Asserts that pointer is `NULL`.                   | `TEC_ASSERT_NULL(response);`                     |
+| `TEC_ASSERT_NOT_NULL(ptr)`      | Asserts that pointer is not `NULL`.               | `TEC_ASSERT_NOT_NULL(data);`                     |
+| **Test Control**                |                                                   |                                                  |
+| `TEC_SKIP(reason)`              | Skips the current test and reports reason.        | `TEC_SKIP("Not implemented yet.");`              |
+| **C++ Exception Testing**       |                                                   |                                                  |
+| `TEC_ASSERT_THROWS(stmt, type)` | Asserts `stmt` throws exception `type`. (C++ only)| `TEC_ASSERT_THROWS(func(), std::runtime_error);` |
+
 
 ---
 
@@ -179,6 +184,51 @@ Add `--file` to make `-f/--filter` match against **filenames** instead of `suite
 - Filtering is **case-sensitive** and uses simple **substring** logic (not regex).
 - If no filters are given, **all registered tests** will be executed.
 - No filters? -> All tests run.
+
+### Test Fixtures (Setup & Teardown)
+Fixtures are functions that set up a common state or context before your tests
+run and clean up afterwards. This is useful for allocating resources, opening
+files, or initializing data structures, preventing code duplication across
+tests.
+
+- `TEC_SETUP(suite_name)`: Runs **once**, before the first test in the suite.
+- `TEC_TEARDOWN(suite_name)`: Runs **once**, after the last test in the suite.
+- `TEC_TEST_SETUP(suite_name)`: Runs before **each individual** test in the suite.
+- `TEC_TEST_TEARDOWN(suite_name)`: Runs after **each individual** test in the suite.
+
+```c
+// A shared buffer for our tests
+static char* shared_buffer = NULL;
+
+// Runs once before all "buffer_tests"
+TEC_SETUP(buffer_tests) {
+    printf("  (Setting up suite...)\n");
+    shared_buffer = (char*)malloc(100);
+}
+
+// Runs once after all "buffer_tests"
+TEC_TEARDOWN(buffer_tests) {
+    printf("  (Tearing down suite...)\n");
+    free(shared_buffer);
+    shared_buffer = NULL;
+}
+
+// Runs before EACH test in this suite
+TEC_TEST_SETUP(buffer_tests) {
+    strcpy(shared_buffer, "initial_state");
+}
+
+// --- Tests ---
+TEC(buffer_tests, test_one) {
+    TEC_ASSERT_STR_EQ(shared_buffer, "initial_state");
+    strcpy(shared_buffer, "modified_by_one");
+}
+
+TEC(buffer_tests, test_two) {
+    // This test gets a fresh state because TEC_TEST_SETUP ran again
+    TEC_ASSERT_STR_EQ(shared_buffer, "initial_state");
+}
+```
 
 ### Test Control
 
@@ -294,6 +344,30 @@ TEC(cpp_style, manual_cleanup) {
 
     // This code is unreachable if the assertion above fails.
     delete my_int;
+}
+```
+
+### Testing for Exceptions
+You can verify that a piece of code throws the correct type of exception using
+`TEC_ASSERT_THROWS`. This is only available in C++.
+
+The test will pass if the statement throws an exception of the exact type
+specified. It will fail if it throws a different type of exception, or no
+exception at all.
+
+```cpp
+#include <stdexcept>
+
+void function_that_throws() {
+    throw std::runtime_error("Something went wrong!");
+}
+
+TEC(exceptions, test_throws) {
+    // This assertion will pass.
+    TEC_ASSERT_THROWS(function_that_throws(), std::runtime_error);
+
+    // This assertion will fail, because the wrong type is thrown.
+    TEC_ASSERT_THROWS(function_that_throws(), std::invalid_argument);
 }
 ```
 
