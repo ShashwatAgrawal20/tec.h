@@ -115,6 +115,8 @@ typedef struct {
         size_t ran_tests;
         size_t passed_tests;
         size_t failed_tests;
+        size_t xfailed_tests;
+        size_t xpassed_tests;
         size_t skipped_tests;
         size_t filtered_tests;
         size_t total_assertions;
@@ -704,12 +706,12 @@ void tec_process_test_result(JUMP_CODES jump_val, const tec_entry_t *test) {
     }
     if (test->xfail) {
         if (has_failed) {
-            tec_context.stats.passed_tests++;
+            tec_context.stats.xfailed_tests++;
             printf(TEC_PRE_SPACE_SHORT TEC_GREEN TEC_TICK_CHAR TEC_RESET
                    " %s (expected failure)\n",
                    test->name);
         } else {
-            tec_context.stats.failed_tests++;
+            tec_context.stats.xpassed_tests++;
             printf(TEC_PRE_SPACE_SHORT TEC_RED TEC_CROSS_CHAR TEC_RESET
                    " %s (unexpected success)\n",
                    test->name);
@@ -980,12 +982,29 @@ int tec_run_all(int argc, char **argv) {
     }
 
     printf("\n" TEC_BLUE "================================" TEC_RESET "\n");
-    printf("Tests:      " TEC_GREEN "%zu passed" TEC_RESET ", " TEC_RED
-           "%zu failed" TEC_RESET ", " TEC_YELLOW "%zu skipped" TEC_RESET
-           ", " TEC_CYAN "%zu filtered" TEC_RESET " (%zu total)\n",
-           tec_context.stats.passed_tests, tec_context.stats.failed_tests,
-           tec_context.stats.skipped_tests, tec_context.stats.filtered_tests,
-           tec_context.registry.tec_count);
+    printf("Tests:      " TEC_GREEN "%zu passed" TEC_RESET,
+           tec_context.stats.passed_tests + tec_context.stats.xfailed_tests);
+    if (tec_context.stats.xfailed_tests > 0) {
+        printf(" (" TEC_GREEN "%zuP" TEC_RESET ", " TEC_MAGENTA
+               "%zuXF" TEC_RESET ")",
+               tec_context.stats.passed_tests, tec_context.stats.xfailed_tests);
+    }
+    printf(", " TEC_RED "%zu failed" TEC_RESET,
+           tec_context.stats.failed_tests + tec_context.stats.xpassed_tests);
+    if (tec_context.stats.xpassed_tests > 0) {
+        printf(" (" TEC_RED "%zuF" TEC_RESET ", " TEC_MAGENTA "%zuXP" TEC_RESET
+               ")",
+               tec_context.stats.failed_tests, tec_context.stats.xpassed_tests);
+    }
+    if (tec_context.stats.skipped_tests > 0) {
+        printf(", " TEC_YELLOW "%zu skipped" TEC_RESET,
+               tec_context.stats.skipped_tests);
+    }
+    if (tec_context.stats.filtered_tests > 0) {
+        printf(", " TEC_CYAN "%zu filtered" TEC_RESET,
+               tec_context.stats.filtered_tests);
+    }
+    printf(" (%zu total)\n", tec_context.registry.tec_count);
 
     printf("Assertions: " TEC_GREEN "%zu passed" TEC_RESET ", " TEC_RED
            "%zu failed" TEC_RESET " (%zu total)\n",
@@ -993,7 +1012,8 @@ int tec_run_all(int argc, char **argv) {
            tec_context.stats.failed_assertions,
            tec_context.stats.total_assertions);
 
-    if (tec_context.stats.failed_tests > 0) {
+    if (tec_context.stats.failed_tests > 0 ||
+        tec_context.stats.xpassed_tests > 0) {
         printf("\n" TEC_RED "Some tests failed!" TEC_RESET "\n");
         result = 1;
     } else if (tec_context.stats.ran_tests == 0) {
