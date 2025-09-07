@@ -497,6 +497,8 @@ inline std::string tec_to_string(char *value) {
                      "(line %d).\n",                                           \
                      #statement, #exception_type, __LINE__);                   \
             TEC_POST_FAIL();                                                   \
+        } catch (const tec_assertion_failure &) {                              \
+            throw;                                                             \
         } catch (const exception_type &) {                                     \
             TEC_POST_PASS();                                                   \
         } catch (const std::exception &e) {                                    \
