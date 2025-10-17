@@ -564,7 +564,7 @@ extern "C" {
 
 tec_context_t tec_context = {};
 
-inline void TEC_POST_FAIL(void) {
+void TEC_POST_FAIL(void) {
     tec_context.current_failed++;
     tec_context.stats.failed_assertions++;
 #ifdef __cplusplus
@@ -575,7 +575,7 @@ inline void TEC_POST_FAIL(void) {
 #endif
 }
 
-inline void _tec_skip_impl(const char *reason, int line) {
+void _tec_skip_impl(const char *reason, int line) {
     const char *_reason = (reason);
     snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN,
              TEC_PRE_SPACE TEC_YELLOW TEC_ARROW_CHAR TEC_RESET
