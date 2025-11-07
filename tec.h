@@ -313,6 +313,36 @@ inline std::string tec_to_string(char *value) {
         }                                                                      \
     } while (0)
 
+#define TEC_ASSERT_TRUE(condition)                                             \
+    do {                                                                       \
+        tec_context.stats.total_assertions++;                                  \
+        TEC_AUTO_TYPE _cond = (condition);                                     \
+        if (!(_cond)) {                                                        \
+            snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
+                     TEC_PRE_SPACE TEC_RED TEC_CROSS_CHAR TEC_RESET            \
+                     " Expected %s to be true (line %d)\n",                    \
+                     #condition, __LINE__);                                    \
+            TEC_POST_FAIL();                                                   \
+        } else {                                                               \
+            TEC_POST_PASS();                                                   \
+        }                                                                      \
+    } while (0)
+
+#define TEC_ASSERT_FALSE(condition)                                            \
+    do {                                                                       \
+        tec_context.stats.total_assertions++;                                  \
+        TEC_AUTO_TYPE _cond = (condition);                                     \
+        if ((_cond)) {                                                         \
+            snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
+                     TEC_PRE_SPACE TEC_RED TEC_CROSS_CHAR TEC_RESET            \
+                     " Expected %s to be false (line %d)\n",                   \
+                     #condition, __LINE__);                                    \
+            TEC_POST_FAIL();                                                   \
+        } else {                                                               \
+            TEC_POST_PASS();                                                   \
+        }                                                                      \
+    } while (0)
+
 #define TEC_ASSERT_EQ(a, b)                                                    \
     do {                                                                       \
         tec_context.stats.total_assertions++;                                  \
