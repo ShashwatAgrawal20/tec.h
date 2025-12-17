@@ -592,7 +592,7 @@ inline std::string tec_to_string(char *value) {
 extern "C" {
 #endif
 
-tec_context_t tec_context = {};
+tec_context_t tec_context = {0};
 
 void TEC_POST_FAIL(void) {
     tec_context.current_failed++;
@@ -836,13 +836,23 @@ bool tec_should_run(const tec_entry_t *test) {
         target_string = full_name_buffer;
     }
 
+    bool has_inclusion_filters = false;
     for (size_t i = 0; i < tec_context.options.filter_count; ++i) {
-        if (strstr(target_string, tec_context.options.filters[i]) != NULL) {
+        const char *f = tec_context.options.filters[i];
+        if (f[0] == '!' && f[1] != '\0') {
+            if (strstr(target_string, f + 1) != NULL) {
+                return false;
+            }
+            continue;
+        }
+        has_inclusion_filters = true;
+        if (strstr(target_string, f) != NULL) {
             return true;
         }
     }
-
-    return false;
+    // If inclusion filters exist, require a match.
+    // Otherwise (only exclusions), allow.
+    return !has_inclusion_filters;
 }
 
 bool _fixture_exec_helper(tec_fixture_func_t func, const char *token) {
