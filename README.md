@@ -171,19 +171,41 @@ The filter is matched against the full test name in the format: `suite_name.test
 ./test_runner --filter alloc    # matches memory.alloc, buffer.alloc, etc.
 ./test_runner -f division -f io # runs tests matching "division" OR "io"
 ```
+#### Excluding tests (negative filters)
+Prefix a filter with `!` to **exclude** tests whose name (or filename) contains the given substring.
+
+```bash
+./test_runner -f '!slow'              # run all tests except those containing "slow"
+./test_runner -f math -f '!division'  # run math tests, but exclude math.division
+./test_runner -f '!io' -f '!network'  # exclude all io and network tests
+```
+Negative filters can be freely mixed with positive filters:
+- **Positive filters:** include matching tests.
+- **Negative filters:** always exclude matching tests.
 #### Filter by filename
 Prefer filtering at the file level?
 Add `--file` to make `-f/--filter` match against **filenames** instead of `suite.test` names.
 
 ```bash
 ./test_runner --file -f math_tests   # runs all tests in files matching "math_tests"
+./test_runner --file -f '!legacy'    # exclude tests from files containing "legacy"
 ./test_runner --file -f io.cpp       # runs tests from files containing "io.cpp"
 ```
 > Rules of Filtering
-- You can provide multiple filters; tests matching any of them will be run.
-- Filtering is **case-sensitive** and uses simple **substring** logic (not regex).
-- If no filters are given, **all registered tests** will be executed.
-- No filters? -> All tests run.
+- Filters are **case-sensitive** and use simple **substring** matching (not regex).
+- You can provide multiple filters.
+- Filters starting with `!` are **exclusion filters**.
+- **Exclusion filters are vetoes**: if any exclusion filter matches, the test is skipped,
+  even if it also matches an inclusion filter.
+- If one or more **inclusion filters** are provided, a test must match at least one to run.
+- If only **exclusion filters** are provided, all tests run except those excluded.
+- If no filters are given, **all registered tests** are executed.
+
+> [!NOTE]
+> When using `--file`, filters (including exclusions) apply only to filenames.
+> Individual tests inside a matched file are not filtered.
+>
+> I might add support for combined file and test filtering later(not a promise :)
 
 ### Test Fixtures (Setup & Teardown)
 Fixtures are functions that set up a common state or context before your tests

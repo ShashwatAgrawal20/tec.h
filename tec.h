@@ -829,7 +829,26 @@ bool tec_should_run(const tec_entry_t *test) {
         target_string = full_name_buffer;
     }
 
+    /* IMPORTANT:
+     * Exclusion filters are vetoes and MUST be evaluated before any inclusion
+     * decision is made. Never early-return on an inclusion match, doing so
+     * allows a later exclusion to be silently ignored depending on filter
+     * order. Accepting a test is a conclusion; excluding a test is a hard stop.
+     *
+     * Historical bug (now fixed):
+     *   ./tests/test_runner -f math -f '!division'
+     *
+     * Target:
+     *   mathutils.division
+     *
+     * A previous implementation returned true as soon as the "math" inclusion
+     * matched, skipping evaluation of the "!division" exclusion and incorrectly
+     * running the test.
+     *
+     * All exclusion filters must be checked before deciding to run a test.
+     */
     bool has_inclusion_filters = false;
+    bool inclusion_matched = false;
     for (size_t i = 0; i < tec_context.options.filter_count; ++i) {
         const char *f = tec_context.options.filters[i];
         if (f[0] == '!' && f[1] != '\0') {
@@ -840,12 +859,13 @@ bool tec_should_run(const tec_entry_t *test) {
         }
         has_inclusion_filters = true;
         if (strstr(target_string, f) != NULL) {
-            return true;
+            inclusion_matched = true;
         }
     }
+
     // If inclusion filters exist, require a match.
     // Otherwise (only exclusions), allow.
-    return !has_inclusion_filters;
+    return has_inclusion_filters ? inclusion_matched : true;
 }
 
 bool _fixture_exec_helper(tec_fixture_func_t func, const char *token) {
