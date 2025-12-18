@@ -71,7 +71,7 @@ TEC_MAIN()
 4. Compile and run it:
 
 ```bash
-$gcc my_test.c -o test_runner && ./test_runner
+$ gcc my_test.c -o test_runner && ./test_runner
 
 ================================
          C Test Runner
@@ -84,7 +84,7 @@ SUITE: string_test (my_test.c)
   ✓ test_strings
 
 ================================
-Tests:      2 passed, 0 failed, 0 skipped, 0 filtered (2 total)
+Tests:      2 passed, 0 failed (2 total)
 Assertions: 3 passed, 0 failed (3 total)
 
 All tests passed!
@@ -472,7 +472,7 @@ SUITE: calculator (calculator.c)
   ✓ test_multiply
 
 ================================
-Tests:      2 passed, 0 failed, 0 skipped, 0 filtered (2 total)
+Tests:      2 passed, 0 failed (2 total)
 Assertions: 4 passed, 0 failed (4 total)
 
 All tests passed!

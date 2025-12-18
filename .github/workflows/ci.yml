@@ -13,8 +13,5 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install compilers
-        run: sudo apt update && sudo apt install build-essential
-
       - name: Build and run tests
         run: make workflow_test

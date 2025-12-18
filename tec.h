@@ -364,9 +364,9 @@ inline std::string tec_to_string(char *value) {
 
 #define TEC_ASSERT_NE(a, b)                                                    \
     do {                                                                       \
+        tec_context.stats.total_assertions++;                                  \
         TEC_AUTO_TYPE _a = a;                                                  \
         TEC_AUTO_TYPE _b = b;                                                  \
-        tec_context.stats.total_assertions++;                                  \
         if ((_a) == (_b)) {                                                    \
             TEC_FMT(_a, tec_context.format_bufs[0]);                           \
             snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
@@ -431,13 +431,6 @@ inline std::string tec_to_string(char *value) {
         }                                                                      \
     } while (0)
 
-/*
- * NOTE: If both strings are NULL, should this count as equal or not?
- * Current behavior treats it as a failure not sure if that's a feature or a
- * bug.
- *
- * PS: DONE
- */
 #define TEC_ASSERT_STR_EQ(a, b)                                                \
     do {                                                                       \
         tec_context.stats.total_assertions++;                                  \

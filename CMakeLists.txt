@@ -1,8 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 project(tec.h C)
 set(CMAKE_C_STANDARD 23)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -pedantic")
-include_directories(include)
+add_compile_options(-Wall -Wextra -pedantic)
 
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     file(GLOB_RECURSE SRC_FILES "src/*.c")
@@ -11,7 +10,9 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
 
     add_executable(main src/main.c ${SRC_FILES})
     add_executable(test_runner ${TEST_SOURCES} ${SRC_FILES})
-    add_custom_target(build_tests
+    target_include_directories(main PRIVATE include)
+    target_include_directories(test_runner PRIVATE include)
+    add_custom_target(test
         COMMAND test_runner
         DEPENDS test_runner
         COMMENT "Running tests..."
