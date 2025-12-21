@@ -53,9 +53,9 @@ extern "C" {
 #define TEC_RESET "\033[0m"
 
 // MIGHT MAKE THE ASCII one the defaults
-#ifdef _WIN32
-#define TEC_TICK_CHAR "[+]"
-#define TEC_CROSS_CHAR "[x]"
+#ifndef _WIN32
+#define TEC_TICK_CHAR "[OK]"
+#define TEC_CROSS_CHAR "[FAIL]"
 #define TEC_ARROW_CHAR "->"
 #define TEC_LINE_CHAR "|"
 #else
@@ -135,6 +135,7 @@ typedef struct {
         char **filters;
         size_t filter_count;
         bool filter_by_filename;
+        bool fail_fast;
     } options;
     size_t current_passed;
     size_t current_failed;
@@ -769,11 +770,13 @@ void tec_print_usage(const char *prog_name) {
            "'-f' "
            "to match against\n"
            "                          the test's filename instead.\n");
+    printf("  --fail-fast             Stop execution after first failure.\n");
     printf("  -h, --help              Display this help message.\n\n");
     printf("Examples:\n");
-    printf("  %s -f 'math'             # Run all tests with 'Math' in their "
-           "name\n",
-           prog_name);
+    printf(
+        "  %s -f 'math'                 # Run all tests with 'Math' in their "
+        "name\n",
+        prog_name);
     printf("  %s --file -f 'math_utils.c'  # Run all tests in files with "
            "'_tests.c' in the name\n",
            prog_name);
@@ -803,6 +806,8 @@ int tec_parse_args(int argc, char **argv) {
             }
         } else if (strcmp(argv[i], "--file") == 0) {
             tec_context.options.filter_by_filename = true;
+        } else if (strcmp(argv[i], "--fail-fast") == 0) {
+            tec_context.options.fail_fast = true;
         } else if (strcmp(argv[i], "-h") == 0 ||
                    strcmp(argv[i], "--help") == 0) {
             tec_print_usage(argv[0]);
@@ -1028,6 +1033,11 @@ int tec_run_all(int argc, char **argv) {
                 _fixture_exec_helper(current_suite_ptr->test_teardown,
                                      "Test Teardown");
             }
+        }
+        if (tec_context.options.fail_fast &&
+            ((!test->xfail && tec_context.current_failed > 0) ||
+             tec_context.stats.xpassed_tests > 0)) {
+            break;
         }
     }
 

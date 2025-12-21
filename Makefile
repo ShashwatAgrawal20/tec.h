@@ -38,7 +38,7 @@ test: $(TEST_RUNNER_BIN)
 
 workflow_test: $(TEST_RUNNER_BIN)
 	@echo "Running tests..."
-	./$(TEST_RUNNER_BIN) -f !this_xfail_should_unexpectedly_pass_and_fail_the_suite
+	./$(TEST_RUNNER_BIN) -f !this_xfail_should_unexpectedly_pass_and_fail_the_suite --fail-fast
 
 clean:
 	@echo "Cleaning build artifacts..."
