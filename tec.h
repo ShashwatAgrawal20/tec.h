@@ -619,17 +619,22 @@ void tec_init_prefixes(void) {
 }
 
 void _tec_detect_color_support(void) {
-    if (tec_context.options.no_color && tec_context.options.use_ascii) {
-        return;
+    bool want_color;
+    if (getenv("NO_COLOR") != NULL) {
+        want_color = false;
+    } else if (getenv("FORCE_COLOR") != NULL) {
+        want_color = true;
+    } else {
+        want_color = isatty(STDOUT_FILENO);
+        if (want_color) {
+            const char *term = getenv("TERM");
+            if (!term || !*term || strcmp(term, "dumb") == 0) {
+                want_color = false;
+            }
+        }
     }
-
-    const char *term = getenv("TERM");
-    if ((getenv("NO_COLOR") != NULL) || (!isatty(STDOUT_FILENO)) ||
-        (!term || term[0] == '\0' || strcmp(term, "dumb") == 0)) {
-        tec_context.options.no_color = true;
-        tec_context.options.use_ascii = true;
-        return;
-    }
+    tec_context.options.no_color = !want_color;
+    tec_context.options.use_ascii = !want_color;
 }
 
 void TEC_POST_FAIL(void) {

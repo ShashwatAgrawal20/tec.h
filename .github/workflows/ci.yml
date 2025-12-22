@@ -7,6 +7,7 @@ on:
 
 env:
   TERM: xterm-256color
+  FORCE_COLOR: 1
 
 jobs:
   test:
