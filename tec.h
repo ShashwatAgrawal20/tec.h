@@ -625,7 +625,7 @@ void _tec_detect_color_support(void) {
 
     const char *term = getenv("TERM");
     if ((getenv("NO_COLOR") != NULL) || (!isatty(STDOUT_FILENO)) ||
-        (term && strcmp(term, "dumb") == 0)) {
+        (!term || term[0] == '\0' || strcmp(term, "dumb") == 0)) {
         tec_context.options.no_color = true;
         tec_context.options.use_ascii = true;
         return;
