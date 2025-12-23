@@ -34,7 +34,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef _WIN32
+// https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/isatty
+#include <io.h>
+#include <windows.h>
+#define isatty _isatty
+#define STDOUT_FILENO _fileno(stdout)
+#else
 #include <unistd.h>
+#endif
 
 #ifdef __cplusplus
 #include <sstream>
@@ -587,13 +596,7 @@ void tec_init_prefixes(void) {
     const char *fail;
     const char *skip;
     const char *line;
-#ifdef _WIN32
-    bool default_ascii = true;
-#else
-    bool default_ascii = false;
-#endif
-    bool use_ascii = tec_context.options.use_ascii || default_ascii;
-    if (use_ascii) {
+    if (tec_context.options.use_ascii) {
         pass = "[ OK ]";
         fail = "[FAIL]";
         skip = "[SKIP]";
@@ -627,10 +630,28 @@ void _tec_detect_color_support(void) {
     } else {
         want_color = isatty(STDOUT_FILENO);
         if (want_color) {
+#ifdef _WIN32
+            // https://learn.microsoft.com/en-us/windows/console/console-virtual-terminal-sequences#example-of-sgr-terminal-sequences
+            HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+            if (hOut == INVALID_HANDLE_VALUE) {
+                want_color = false;
+            } else {
+                DWORD dwMode = 0;
+                if (!GetConsoleMode(hOut, &dwMode)) {
+                    want_color = false;
+                } else {
+                    dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+                    if (!SetConsoleMode(hOut, dwMode)) {
+                        want_color = false;
+                    }
+                }
+            }
+#else
             const char *term = getenv("TERM");
             if (!term || !*term || strcmp(term, "dumb") == 0) {
                 want_color = false;
             }
+#endif
         }
     }
     tec_context.options.no_color = !want_color;

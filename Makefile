@@ -6,12 +6,23 @@ SRCDIR = src
 TESTDIR = tests
 BUILDDIR = build
 
+ifeq ($(OS),Windows_NT)
+	RM = cmd /C del /Q /F
+	RMDIR = cmd /C rmdir /S /Q
+	MKDIR = cmd /C if not exist
+	TEST_SRC_FILES := $(shell dir /S /B $(TESTDIR)\*.c 2>nul)
+else
+	RM = rm -f
+	RMDIR = rm -rf
+	MKDIR = mkdir -p
+	TEST_SRC_FILES := $(shell find $(TESTDIR) -type f -name '*.c')
+endif
+
 TARGET = main
 TEST_RUNNER_BIN = $(TESTDIR)/test_runner
 TEST_RUNNER_SRC := $(TESTDIR)/test_runner.c
 
 SRC_FILES := $(wildcard $(SRCDIR)/*.c)
-TEST_SRC_FILES := $(shell find $(TESTDIR) -type f -name '*.c')
 
 SRC_OBJECTS := $(patsubst %.c,$(BUILDDIR)/%.o,$(SRC_FILES))
 TEST_OBJECTS := $(patsubst %.c,$(BUILDDIR)/%.o,$(TEST_SRC_FILES))
@@ -29,7 +40,7 @@ $(TEST_RUNNER_BIN): $(TEST_OBJECTS) $(NON_MAIN_OBJECTS)
 	$(CC) $(CFLAGS) $(INCLUDES) -o $@ $^
 
 $(BUILDDIR)/%.o: %.c
-	@mkdir -p $(dir $@)
+	@$(MKDIR) $(dir $@)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 test: $(TEST_RUNNER_BIN)
@@ -42,7 +53,9 @@ workflow_test: $(TEST_RUNNER_BIN)
 
 clean:
 	@echo "Cleaning build artifacts..."
-	rm -rf $(BUILDDIR) $(TARGET) $(TEST_RUNNER_BIN)
+	-@$(RMDIR) $(BUILDDIR)
+	-@$(RM) $(TARGET)
+	-@$(RM) $(TEST_RUNNER_BIN)
 
 help:
 	@echo "Available targets:"

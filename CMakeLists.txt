@@ -1,7 +1,12 @@
 cmake_minimum_required(VERSION 3.10)
 project(tec.h C)
 set(CMAKE_C_STANDARD 23)
-add_compile_options(-Wall -Wextra -pedantic)
+
+if(MSVC)
+    add_compile_options(/W4)
+else()
+    add_compile_options(-Wall -Wextra -pedantic)
+endif()
 
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     file(GLOB_RECURSE SRC_FILES "src/*.c")
@@ -13,8 +18,9 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     target_include_directories(main PRIVATE include)
     target_include_directories(test_runner PRIVATE include)
     add_custom_target(test
-        COMMAND test_runner
+        COMMAND $<TARGET_FILE:test_runner>
         DEPENDS test_runner
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         COMMENT "Running tests..."
     )
 else()
