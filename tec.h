@@ -25,6 +25,12 @@
 #ifndef TEC_H
 #define TEC_H
 
+// clang-format off
+#if defined(_MSC_VER) && !defined(__clang__)
+#error "MSVC is not supported; when I die, donate my middle finger to Microsoft engineers."
+#endif
+// clang-format on
+
 #include <float.h>
 #include <inttypes.h>
 #include <setjmp.h>
