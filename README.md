@@ -92,8 +92,12 @@ All tests passed!
 That's it. There is no step 5.
 
 > [!CAUTION]
-> TEC relies on GCC extensions like `__auto_type` and `__attribute__((constructor))`.
-> This makes it highly compatible with GCC and Clang but may not work with other compilers like MSVC.
+> **MSVC is not supported.**
+>
+> TEC relies heavily on GCC extensions like `__auto_type` and `__attribute__((constructor))`.
+> As a result, TEC is highly compatible on GCC and Clang and will not compile or work with MSVC.
+>
+> Windows users should build using **MinGW-w64** or **Clang** rather than MSVC.
 
 ---
 

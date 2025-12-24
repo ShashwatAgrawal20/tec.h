@@ -46,7 +46,9 @@
 #include <io.h>
 #include <windows.h>
 #define isatty _isatty
+#ifndef STDOUT_FILENO
 #define STDOUT_FILENO _fileno(stdout)
+#endif
 #else
 #include <unistd.h>
 #endif
@@ -602,7 +604,15 @@ void tec_init_prefixes(void) {
     const char *fail;
     const char *skip;
     const char *line;
-    if (tec_context.options.use_ascii) {
+#ifdef _WIN32
+    // stick to good old ascii cause windows support for utf-8 is pain in the
+    // ass.
+    bool default_ascii = true;
+#else
+    bool default_ascii = false;
+#endif
+    bool use_ascii = tec_context.options.use_ascii || default_ascii;
+    if (use_ascii) {
         pass = "[ OK ]";
         fail = "[FAIL]";
         skip = "[SKIP]";
