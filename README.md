@@ -23,6 +23,8 @@ your way so you can just write tests. Zero-setup unit testing is just one `#incl
 - [Assertion API](#assertion-api)
 - [Advanced Usage](#advanced-usage)
   - [Filtering Tests](#filtering-tests)
+  - [Fail-Fast Mode](#fail-fast-mode)
+  - [Output & Color Control](#output--color-control)
   - [Test Fixtures (Setup & Teardown)](#test-fixtures-setup--teardown)
   - [Test Control](#test-control)
     - [Skipping Tests](#skipping-tests)
@@ -247,7 +249,6 @@ TEC also respects standard environment variables:
 >
 > When `NO_COLOR` is set, TEC disables colored output and falls back to ASCII
 > symbols by default.
-
 
 ### Test Fixtures (Setup & Teardown)
 Fixtures are functions that set up a common state or context before your tests
