@@ -1016,10 +1016,11 @@ int tec_run_all(int argc, char **argv) {
     bool suite_setup_failed = false;
     bool test_setup_failed = false;
     bool has_printed_test_setup_failure = false;
+
+    _tec_detect_color_support(); /* This should stay above `tec_parse_args` */
     result = tec_parse_args(argc, argv);
     if (result)
         goto cleanup;
-    _tec_detect_color_support();
     tec_init_prefixes();
     printf("%s================================\n", TEC_BLUE);
     printf("         C Test Runner          \n");

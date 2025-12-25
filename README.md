@@ -140,6 +140,9 @@ The library provides a straightforward set of assertions. On failure, it prints 
 | Macro                           | Description                                       | Example Usage                                    |
 |---------------------------------|---------------------------------------------------|--------------------------------------------------|
 | `TEC_ASSERT(expression)`        | Asserts that `expression` is true.                | `TEC_ASSERT(count > 0);`                         |
+| **Booleans**                    |                                                   |                                                  |
+| `TEC_ASSERT_TRUE(expression)`   | Asserts that `expression` is true.                | `TEC_ASSERT_TRUE(is_valid);`                     |
+| `TEC_ASSERT_FALSE(expression)`  | Asserts that `expression` is false.               | `TEC_ASSERT_FALSE(has_error);`                   |
 | **Equality & Inequality**       |                                                   |                                                  |
 | `TEC_ASSERT_EQ(a, b)`           | Asserts that `a == b`.                            | `TEC_ASSERT_EQ(result, 42);`                     |
 | `TEC_ASSERT_NE(a, b)`           | Asserts that `a != b`.                            | `TEC_ASSERT_NE(id1, id2);`                       |
@@ -211,11 +214,49 @@ Add `--file` to make `-f/--filter` match against **filenames** instead of `suite
 >
 > I might add support for combined file and test filtering later(not a promise :)
 
+### Fail-Fast Mode
+You can stop test execution immediately after the first failure or unexpected
+success (XPASS) using `--fail-fast`.
+```bash
+./test_runner --fail-fast
+```
+This is useful when you want fast feedback while iterating on a failing test.
+
+### Output & Color Control
+By default, TEC automatically enables colored output when running in a TTY,
+and falls back to plain output when stdout is redirected.
+
+> [!NOTE]
+> On Windows, TEC defaults to ASCII output due to limited UTF-8 console support.
+
+You can override this behavior using CLI flags:
+```bash
+./test_runner --no-color   # disable colored output
+./test_runner --ascii      # force ASCII symbols instead of Unicode
+```
+
+TEC also respects standard environment variables:
+- `NO_COLOR` — disable colored output
+- `FORCE_COLOR` — force color output even when stdout is not a TTY
+
+> [!IMPORTANT]
+> Precedence order (highest to lowest):
+> 1. CLI flags (--no-color, --ascii)
+> 2. Environment variables (NO_COLOR, FORCE_COLOR)
+> 3. Automatic detection (TTY, terminal capabilities)
+>
+> When `NO_COLOR` is set, TEC disables colored output and falls back to ASCII
+> symbols by default.
+
+
 ### Test Fixtures (Setup & Teardown)
 Fixtures are functions that set up a common state or context before your tests
 run and clean up afterwards. This is useful for allocating resources, opening
 files, or initializing data structures, preventing code duplication across
 tests.
+
+> If a suite setup fails, all tests in that suite are skipped.
+> If a test setup fails, only that test is skipped.
 
 - `TEC_SETUP(suite_name)`: Runs **once**, before the first test in the suite.
 - `TEC_TEARDOWN(suite_name)`: Runs **once**, after the last test in the suite.
