@@ -229,7 +229,6 @@ inline std::string tec_to_string(char *value) {
  * default case now uses (const void *)&x to bypass int-to-pointer-size
  * warnings.
  */
-
 #ifdef TEC_64BIT_SYSTEM_SIZE_T_CONFLICT_UINT64
 #define TEC_FORMAT_SPEC(x)                                                     \
     _Generic((x),                                                              \
@@ -549,23 +548,60 @@ inline std::string tec_to_string(char *value) {
     } while (0)
 #endif
 
+#ifdef __cplusplus
+struct tec_auto_register {
+    tec_auto_register(const char *suite, const char *name, const char *file,
+                      tec_func_t func, bool xfail) {
+        tec_register(suite, name, file, func, xfail);
+    }
+};
+struct tec_auto_register_fixture {
+    tec_auto_register_fixture(const char *suite_name, tec_fixture_func_t func,
+                              tec_fixture_type fixture_type) {
+        tec_register_fixture(suite_name, func, fixture_type);
+    }
+};
+
 #define TEC(suite_name, test_name)                                             \
-    static void tec_##suite_name_##test_name(void);                            \
-    static void __attribute__((constructor))                                   \
-    tec_register_##suite_name_##test_name(void) {                              \
-        tec_register(#suite_name, #test_name, __FILE__,                        \
-                     tec_##suite_name_##test_name, false);                     \
-    }                                                                          \
-    static void tec_##suite_name_##test_name(void)
+    static void tec_##suite_name##_##test_name(void);                          \
+    static tec_auto_register tec_register_##suite_name##_##test_name(          \
+        #suite_name, #test_name, __FILE__, tec_##suite_name##_##test_name,     \
+        false);                                                                \
+    static void tec_##suite_name##_##test_name(void)
 
 #define TEC_XFAIL(suite_name, test_name)                                       \
-    static void tec_##suite_name_##test_name(void);                            \
+    static void tec_##suite_name##_##test_name(void);                          \
+    static tec_auto_register tec_register_##suite_name##_##test_name(          \
+        #suite_name, #test_name, __FILE__, tec_##suite_name##_##test_name,     \
+        true);                                                                 \
+    static void tec_##suite_name##_##test_name(void)
+
+#define _TEC_FIXTURE_FACTORY(suite_name, fixture_type_token,                   \
+                             fixture_type_enum)                                \
+    static void tec_##fixture_type_token##_##suite_name(void);                 \
+    static tec_auto_register_fixture                                           \
+        tec_register_##fixture_type_token##_##suite_name(                      \
+            #suite_name, tec_##fixture_type_token##_##suite_name,              \
+            fixture_type_enum);                                                \
+    static void tec_##fixture_type_token##_##suite_name(void)
+#else
+#define TEC(suite_name, test_name)                                             \
+    static void tec_##suite_name##_##test_name(void);                          \
     static void __attribute__((constructor))                                   \
-    tec_register_##suite_name_##test_name(void) {                              \
+    tec_register_##suite_name##_##test_name(void) {                            \
         tec_register(#suite_name, #test_name, __FILE__,                        \
-                     tec_##suite_name_##test_name, true);                      \
+                     tec_##suite_name##_##test_name, false);                   \
     }                                                                          \
-    static void tec_##suite_name_##test_name(void)
+    static void tec_##suite_name##_##test_name(void)
+
+#define TEC_XFAIL(suite_name, test_name)                                       \
+    static void tec_##suite_name##_##test_name(void);                          \
+    static void __attribute__((constructor))                                   \
+    tec_register_##suite_name##_##test_name(void) {                            \
+        tec_register(#suite_name, #test_name, __FILE__,                        \
+                     tec_##suite_name##_##test_name, true);                    \
+    }                                                                          \
+    static void tec_##suite_name##_##test_name(void)
 
 #define _TEC_FIXTURE_FACTORY(suite_name, fixture_type_token,                   \
                              fixture_type_enum)                                \
@@ -577,6 +613,7 @@ inline std::string tec_to_string(char *value) {
                              fixture_type_enum);                               \
     }                                                                          \
     static void tec_##fixture_type_token##_##suite_name(void)
+#endif
 
 #define TEC_SETUP(suite_name)                                                  \
     _TEC_FIXTURE_FACTORY(suite_name, setup, TEC_SUITE_SETUP)
@@ -592,7 +629,7 @@ inline std::string tec_to_string(char *value) {
 extern "C" {
 #endif
 
-tec_context_t tec_context = {0};
+tec_context_t tec_context;
 
 char tec_fail_prefix[TEC_PREFIX_SIZE];
 char tec_pass_prefix[TEC_PREFIX_SIZE];
