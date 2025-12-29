@@ -4,24 +4,25 @@
 #include <stdlib.h>
 #include <string.h>
 
-char* string_concat(const char* a, const char* b) {
+// clang-format off
+char *string_concat(const char *a, const char *b) {
     if (!a || !b) return NULL;
-    char* result = malloc(strlen(a) + strlen(b) + 1);
+    char *result = (char *)malloc(strlen(a) + strlen(b) + 1);
     if (!result) return NULL;
     strcpy(result, a);
     strcat(result, b);
     return result;
 }
 
-int string_length(const char* str) {
+int string_length(const char *str) {
     if (!str) return -1;
     return strlen(str);
 }
 
-char* string_reverse(const char* str) {
+char *string_reverse(const char *str) {
     if (!str) return NULL;
     int len = strlen(str);
-    char* result = malloc(len + 1);
+    char *result = (char *)malloc(len + 1);
     if (!result) return NULL;
 
     for (int i = 0; i < len; i++) {
@@ -31,10 +32,10 @@ char* string_reverse(const char* str) {
     return result;
 }
 
-char* string_upper(const char* str) {
+char *string_upper(const char *str) {
     if (!str) return NULL;
     int len = strlen(str);
-    char* result = malloc(len + 1);
+    char *result = (char *)malloc(len + 1);
     if (!result) return NULL;
 
     for (int i = 0; i < len; i++) {
@@ -43,3 +44,4 @@ char* string_upper(const char* str) {
     result[len] = '\0';
     return result;
 }
+// clang-format on
