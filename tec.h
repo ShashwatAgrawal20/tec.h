@@ -47,10 +47,14 @@
 #define isatty _isatty
 #ifndef STDOUT_FILENO
 #define STDOUT_FILENO _fileno(stdout)
-#define TEC_FUCK_MSVC_EH noexcept(false)
 #endif
 #else
 #include <unistd.h>
+#endif
+
+#ifdef __cplusplus
+#define TEC_FUCK_MSVC_EH noexcept(false)
+#else
 #define TEC_FUCK_MSVC_EH
 #endif
 
