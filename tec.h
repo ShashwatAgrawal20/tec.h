@@ -236,7 +236,6 @@ inline std::string tec_to_string(char *value) {
         tec_context.jump_set = false;                                          \
     } while (0)
 
-#define TEC_TRY_END
 /*
  * don't fuck with this.
  * keep TEC_FORMAT_SPEC and TEC_FORMAT_VALUE split to avoid -Wformat issues
