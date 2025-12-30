@@ -25,12 +25,6 @@
 #ifndef TEC_H
 #define TEC_H
 
-// clang-format off
-#if defined(_MSC_VER) && !defined(__clang__)
-#error "MSVC is not supported; when I die, donate my middle finger to Microsoft engineers."
-#endif
-// clang-format on
-
 #include <float.h>
 #include <inttypes.h>
 #include <setjmp.h>
@@ -40,6 +34,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef __cplusplus
+#include <sstream>
+#include <stdexcept>
+#include <string>
+#endif
 
 #ifdef _WIN32
 // https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/isatty
@@ -48,15 +47,11 @@
 #define isatty _isatty
 #ifndef STDOUT_FILENO
 #define STDOUT_FILENO _fileno(stdout)
+#define TEC_FUCK_MSVC_EH noexcept(false)
 #endif
 #else
 #include <unistd.h>
-#endif
-
-#ifdef __cplusplus
-#include <sstream>
-#include <stdexcept>
-#include <string>
+#define TEC_FUCK_MSVC_EH
 #endif
 
 #ifdef __cplusplus
@@ -156,8 +151,8 @@ void tec_register_fixture(const char *suite_name, tec_fixture_func_t func,
                           tec_fixture_type fixture_type);
 
 void _tec_post_wrapper(bool is_fail_case);
-void TEC_POST_FAIL(void);
-void _tec_skip_impl(const char *reason, int line);
+void TEC_POST_FAIL(void) TEC_FUCK_MSVC_EH;
+void _tec_skip_impl(const char *reason, int line) TEC_FUCK_MSVC_EH;
 
 extern tec_context_t tec_context;
 extern char tec_fail_prefix[TEC_PREFIX_SIZE];
@@ -210,17 +205,34 @@ inline std::string tec_to_string(char *value) {
 #define TEC_FMT(x, buf)                                                        \
     snprintf((buf), TEC_FMT_SLOT_SIZE, "%s", tec_to_string(x).c_str())
 
+#define TEC_TRY_BLOCK(code)                                                    \
+    try {                                                                      \
+        code                                                                   \
+    } catch (const tec_assertion_failure &) {                                  \
+    } catch (const tec_skip_test &) {                                          \
+    }
 #else
 #define TEC_FORMAT_VALUE_PAIR(x) TEC_FORMAT_SPEC(x), TEC_FORMAT_VALUE(x)
 
 #define TEC_FMT(x, buf)                                                        \
     snprintf((buf), TEC_TMP_STRBUF_LEN, TEC_FORMAT_VALUE_PAIR(x))
 
-#define TEC_TRY_BLOCK                                                          \
-    for (int _tec_loop_once = (tec_context.jump_set = true, 1);                \
-         _tec_loop_once && setjmp(tec_context.jump_buffer) == 0;               \
-         _tec_loop_once = 0, tec_context.jump_set = false)
+/*
+ * #define TEC_TRY_BLOCK                                                       \
+ *     for (int _tec_loop_once = (tec_context.jump_set = true, 1);             \
+ *          _tec_loop_once && setjmp(tec_context.jump_buffer) == 0;            \
+ *          _tec_loop_once = 0, tec_context.jump_set = false)
+ */
+#define TEC_TRY_BLOCK(code)                                                    \
+    do {                                                                       \
+        tec_context.jump_set = true;                                           \
+        if (setjmp(tec_context.jump_buffer) == 0) {                            \
+            code                                                               \
+        }                                                                      \
+        tec_context.jump_set = false;                                          \
+    } while (0)
 
+#define TEC_TRY_END
 /*
  * don't fuck with this.
  * keep TEC_FORMAT_SPEC and TEC_FORMAT_VALUE split to avoid -Wformat issues
@@ -483,6 +495,20 @@ inline std::string tec_to_string(char *value) {
         }                                                                      \
     } while (0)
 
+#define TEC_ASSERT_FUNC_NOT_NULL(fn)                                           \
+    do {                                                                       \
+        tec_context.stats.total_assertions++;                                  \
+        if ((fn) == NULL) {                                                    \
+            snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN, \
+                     TEC_PRE_SPACE                                             \
+                     "%sExpected function %s to not be NULL (line %d)\n",      \
+                     tec_fail_prefix, #fn, __LINE__);                          \
+            TEC_POST_FAIL();                                                   \
+        } else {                                                               \
+            TEC_POST_PASS();                                                   \
+        }                                                                      \
+    } while (0)
+
 #define TEC_ASSERT_GT(a, b) _TEC_ASSERT_OP(a, b, >)
 #define TEC_ASSERT_GE(a, b) _TEC_ASSERT_OP(a, b, >=)
 #define TEC_ASSERT_LT(a, b) _TEC_ASSERT_OP(a, b, <)
@@ -711,7 +737,7 @@ void _tec_detect_color_support(void) {
     tec_context.options.use_ascii = !want_color;
 }
 
-void TEC_POST_FAIL(void) {
+void TEC_POST_FAIL(void) TEC_FUCK_MSVC_EH {
     tec_context.current_failed++;
     tec_context.stats.failed_assertions++;
 #ifdef __cplusplus
@@ -722,7 +748,7 @@ void TEC_POST_FAIL(void) {
 #endif
 }
 
-void _tec_skip_impl(const char *reason, int line) {
+void _tec_skip_impl(const char *reason, int line) TEC_FUCK_MSVC_EH {
     const char *_reason = (reason);
     snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN,
              TEC_PRE_SPACE "%sSkipped: %s (line %d)\n", tec_skip_prefix,

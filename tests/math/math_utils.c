@@ -8,12 +8,12 @@ TEC_XFAIL(framework, teardown_with_cleanup) {
 
     // TRY BLOCK: Contains setup and assertions.
     // If an assert fails, execution jumps past this block.
-    TEC_TRY_BLOCK {
-        value = malloc(sizeof(int));
-        TEC_ASSERT_NE(NULL, value);
+    TEC_TRY_BLOCK({
+        value = (int *)malloc(sizeof(int));
+        TEC_ASSERT_NOT_NULL(value);
         *value = 69;
         TEC_ASSERT_EQ(*value, 420);
-    }
+    });
 
     // FINALLY BLOCK: This code is guaranteed to run.
     // No keyword is needed; it's simply the code that follows the try block.
@@ -97,6 +97,6 @@ TEC(mathutils, factorial) {
 TEC(logic, booleans_act_right) {
     TEC_ASSERT(1);
     TEC_ASSERT(!0);
-    TEC_ASSERT_EQ(1 == 1, 1);
-    TEC_ASSERT_NE(1 == 0, 1);
+    TEC_ASSERT_EQ(1 == 1, (bool)1);
+    TEC_ASSERT_NE(1 == 0, (bool)1);
 }
