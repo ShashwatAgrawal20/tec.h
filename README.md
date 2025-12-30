@@ -18,6 +18,7 @@ your way so you can just write tests. Zero-setup unit testing is just one `#incl
 - [In Action](#in-action)
 - [Why TEC](#why-tec)
 - [Quick Start](#quick-start)
+- [Compiler Support](#compiler-support)
 - [Features](#features)
 - [Test Suites](#test-suites)
 - [Assertion API](#assertion-api)
@@ -93,13 +94,33 @@ All tests passed!
 ```
 That's it. There is no step 5.
 
-> [!CAUTION]
-> **MSVC is not supported.**
+## Compiler Support
+TEC aims to work across all major toolchains with minimal special handling.
+
+### Supported Compilers
+| Compiler | Status          | Notes                       |
+|----------|-----------------|-----------------------------|
+| GCC      | Fully supported | Native C & C++              |
+| Clang    | Fully supported | Native C & C++              |
+| MSVC     | Supported       | C tests are compiled as C++ |
+
+### MSVC Notes
+MSVC does not support many GNU C extensions used by TEC.
+
+To work around this, **C tests are compiled as C++** when using MSVC:
+- `/TP` is used to force C++ mode
+- `/EHsc` is enabled for exception handling
+
+This allows:
+- Full test registration
+- Proper failure handling
+- Shared behavior with the C++ backend
+
+> [!NOTE]
+> When compiling with MSVC, tests written in `.c` files will be treated as C++.
 >
-> TEC relies heavily on GCC extensions like `__auto_type` and `__attribute__((constructor))`.
-> As a result, TEC is highly compatible on GCC and Clang and will not compile or work with MSVC.
->
-> Windows users should build using **MinGW-w64** or **Clang** rather than MSVC.
+> This usually works transparently, but strictly C-only constructs may require
+> small adjustments.
 
 ---
 
@@ -160,6 +181,7 @@ The library provides a straightforward set of assertions. On failure, it prints 
 | `TEC_ASSERT_STR_EQ(a, b)`       | Asserts that two strings are equal.               | `TEC_ASSERT_STR_EQ(msg, "OK");`                  |
 | `TEC_ASSERT_NULL(ptr)`          | Asserts that pointer is `NULL`.                   | `TEC_ASSERT_NULL(response);`                     |
 | `TEC_ASSERT_NOT_NULL(ptr)`      | Asserts that pointer is not `NULL`.               | `TEC_ASSERT_NOT_NULL(data);`                     |
+| `TEC_ASSERT_FUNC_NOT_NULL(fn)`  | Asserts that a function pointer is not NULL.      | `TEC_ASSERT_FUNC_NOT_NULL(callback);`            |
 | **Test Control**                |                                                   |                                                  |
 | `TEC_SKIP(reason)`              | Skips the current test and reports reason.        | `TEC_SKIP("Not implemented yet.");`              |
 | **C++ Exception Testing**       |                                                   |                                                  |
