@@ -5,14 +5,14 @@
 #include "../tec.h"
 
 TEC(string, test_string_concat_basic) {
-    char* result = string_concat("Hello", " World");
+    char *result = string_concat("Hello", " World");
     TEC_ASSERT_NOT_NULL(result);
     TEC_ASSERT_STR_EQ(result, "Hello World");
     free(result);
 }
 
 TEC(string, test_string_concat_empty) {
-    char* result = string_concat("", "test");
+    char *result = string_concat("", "test");
     TEC_ASSERT_STR_EQ(result, "test");
     free(result);
 
@@ -22,15 +22,17 @@ TEC(string, test_string_concat_empty) {
 }
 
 TEC(string, test_string_length_basic) {
-    TEC_ASSERT_EQ(string_length("hello"), 5);
-    TEC_ASSERT_EQ(string_length(""), 0);
-    TEC_ASSERT_EQ(string_length("C"), 1);
+    TEC_ASSERT_EQ(string_length("hello"), (size_t)5);
+    TEC_ASSERT_EQ(string_length(""), (size_t)0);
+    TEC_ASSERT_EQ(string_length("C"), (size_t)1);
 }
 
-TEC(string, test_string_length_null) { TEC_ASSERT_EQ(string_length(NULL), -1); }
+TEC(string, test_string_length_null) {
+    TEC_ASSERT_EQ(string_length(NULL), (size_t)SIZE_MAX);
+}
 
 TEC(string, test_string_reverse_basic) {
-    char* result = string_reverse("hello");
+    char *result = string_reverse("hello");
     TEC_ASSERT_NOT_NULL(result);
     TEC_ASSERT_STR_EQ(result, "olleh");
     free(result);
@@ -41,7 +43,7 @@ TEC(string, test_string_reverse_basic) {
 }
 
 TEC(string, test_string_upper_basic) {
-    char* result = string_upper("hello world");
+    char *result = string_upper("hello world");
     TEC_ASSERT_NOT_NULL(result);
     TEC_ASSERT_STR_EQ(result, "HELLO WORLD");
     free(result);

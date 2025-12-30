@@ -362,13 +362,13 @@ TEC(cleanup, test_with_cleanup) {
     char* buffer = malloc(100);
     TEC_ASSERT_NOT_NULL(buffer); // A failure here would skip the free() call.
 
-    TEC_TRY_BLOCK {
+    TEC_TRY_BLOCK({
         // Assertions inside this block are safe.
         strcpy(buffer, "hello");
         TEC_ASSERT_EQ(buffer[0], 'h');
         TEC_ASSERT_EQ(1, 0); // This will fail...
         TEC_ASSERT(false);   // ...and this line will never be reached.
-    }
+    });
 
     // ...but the jump lands here, so cleanup can proceed.
     printf("Cleaning up resources...\n");

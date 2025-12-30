@@ -8,7 +8,7 @@ TEC(formatter_macros, test_signed_integers) {
 
     TEC_ASSERT_EQ(i8, (int8_t)-128);
     TEC_ASSERT_EQ(i16, (int16_t)-32768);
-    TEC_ASSERT_EQ(i32, (int32_t)-2147483648);
+    TEC_ASSERT_EQ(i32, (int32_t)(-2147483647 - 1));
     TEC_ASSERT_EQ(i64, (int64_t)(-9223372036854775807LL - 1LL));
 }
 
