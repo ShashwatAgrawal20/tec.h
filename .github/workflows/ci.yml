@@ -33,4 +33,4 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           cmake -S . -B build -G "Ninja"
-          cmake --build workflow_test
+          cmake --build build --target workflow_test
