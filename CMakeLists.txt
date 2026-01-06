@@ -24,8 +24,8 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         COMMENT "Running tests..."
     )
-    add_custom_target(workflow_test -f !this_xfail_should_unexpectedly_pass_and_fail_the_suite
-        COMMAND $<TARGET_FILE:test_runner>
+    add_custom_target(workflow_test
+        COMMAND $<TARGET_FILE:test_runner> -f !this_xfail_should_unexpectedly_pass_and_fail_the_suite
         DEPENDS test_runner
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         COMMENT "Running tests..."
