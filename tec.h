@@ -1270,9 +1270,8 @@ int tec_run_all(int argc, char **argv) {
         !suite_setup_failed) {
         _fixture_exec_helper(current_suite_ptr->teardown, "Suite Teardown");
     }
-    double suite_elapsed = suite_test_time;
     char suite_time_buf[32];
-    tec_format_time(suite_elapsed, suite_time_buf, sizeof(suite_time_buf));
+    tec_format_time(suite_test_time, suite_time_buf, sizeof(suite_time_buf));
     printf("%s  Suite total: %s%s\n", TEC_GRAY, suite_time_buf, TEC_RESET);
 
     double total_elapsed = tec_get_time() - total_start;
