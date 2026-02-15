@@ -49,6 +49,7 @@
 #define STDOUT_FILENO _fileno(stdout)
 #endif
 #else
+#include <time.h>
 #include <unistd.h>
 #endif
 
@@ -67,6 +68,7 @@ extern "C" {
 #define TEC_BLUE (tec_context.options.no_color ? "" : "\033[34m")
 #define TEC_MAGENTA (tec_context.options.no_color ? "" : "\033[35m")
 #define TEC_CYAN (tec_context.options.no_color ? "" : "\033[36m")
+#define TEC_GRAY (tec_context.options.no_color ? "" : "\033[90m")
 #define TEC_RESET (tec_context.options.no_color ? "" : "\033[0m")
 
 #define TEC_PRE_SPACE "    "
@@ -665,6 +667,24 @@ char tec_pass_prefix[TEC_PREFIX_SIZE];
 char tec_skip_prefix[TEC_PREFIX_SIZE];
 char tec_line_prefix[TEC_PREFIX_SIZE];
 
+double tec_get_time(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec + ts.tv_nsec * 1e-9;
+}
+
+void tec_format_time(double seconds, char *buf, size_t buf_size) {
+    if (seconds >= 1.0) {
+        snprintf(buf, buf_size, "%.3f s", seconds);
+    } else if (seconds >= 1e-3) {
+        snprintf(buf, buf_size, "%.3f ms", seconds * 1e3);
+    } else if (seconds >= 1e-6) {
+        snprintf(buf, buf_size, "%.3f us", seconds * 1e6);
+    } else {
+        snprintf(buf, buf_size, "%.3f ns", seconds * 1e9);
+    }
+}
+
 void tec_init_prefixes(void) {
     const char *pass;
     const char *fail;
@@ -875,33 +895,41 @@ tec_suite_t *tec_find_suite(const char *name) {
     return NULL;
 }
 
-void tec_process_test_result(JUMP_CODES jump_val, const tec_entry_t *test) {
+void tec_process_test_result(JUMP_CODES jump_val, const tec_entry_t *test,
+                             double elapsed) {
+    char time_buf[32];
+    tec_format_time(elapsed, time_buf, sizeof(time_buf));
+
     bool has_failed = (jump_val == TEC_FAIL || tec_context.current_failed > 0);
     if (jump_val == TEC_SKIP_e) {
         tec_context.stats.skipped_tests++;
-        printf(TEC_PRE_SPACE_SHORT "%s%s\n", tec_skip_prefix, test->name);
+        printf(TEC_PRE_SPACE_SHORT "%s%s %s(%s)%s\n", tec_skip_prefix,
+               test->name, TEC_GRAY, time_buf, TEC_RESET);
         printf("%s", tec_context.failure_message);
         return;
     }
     if (test->xfail) {
         if (has_failed) {
             tec_context.stats.xfailed_tests++;
-            printf(TEC_PRE_SPACE_SHORT "%s%s (expected failure)\n",
-                   tec_pass_prefix, test->name);
+            printf(TEC_PRE_SPACE_SHORT "%s%s (expected failure) %s(%s)%s\n",
+                   tec_pass_prefix, test->name, TEC_GRAY, time_buf, TEC_RESET);
         } else {
             tec_context.stats.xpassed_tests++;
-            printf(TEC_PRE_SPACE_SHORT "%s%s (unexpected success)\n",
-                   tec_fail_prefix, test->name);
+            printf(TEC_PRE_SPACE_SHORT "%s%s (unexpected success) %s(%s)%s\n",
+                   tec_fail_prefix, test->name, TEC_GRAY, time_buf, TEC_RESET);
         }
     } else {
         if (has_failed) {
             tec_context.stats.failed_tests++;
-            printf(TEC_PRE_SPACE_SHORT "%s%s - %zu assertion(s) failed\n",
-                   tec_fail_prefix, test->name, tec_context.current_failed);
+            printf(TEC_PRE_SPACE_SHORT
+                   "%s%s - %zu assertion(s) failed %s(%s)%s\n",
+                   tec_fail_prefix, test->name, tec_context.current_failed,
+                   TEC_GRAY, time_buf, TEC_RESET);
             printf("%s", tec_context.failure_message);
         } else {
             tec_context.stats.passed_tests++;
-            printf(TEC_PRE_SPACE_SHORT "%s%s\n", tec_pass_prefix, test->name);
+            printf(TEC_PRE_SPACE_SHORT "%s%s %s(%s)%s\n", tec_pass_prefix,
+                   test->name, TEC_GRAY, time_buf, TEC_RESET);
         }
     }
 }
@@ -1077,6 +1105,7 @@ bool _fixture_exec_helper(tec_fixture_func_t func, const char *token) {
 
 int tec_run_all(int argc, char **argv) {
     int result = 0;
+    double suite_start = 0.0;
     const char *current_suite = NULL;
     const tec_suite_t *current_suite_ptr = NULL;
     bool suite_setup_failed = false;
@@ -1088,6 +1117,9 @@ int tec_run_all(int argc, char **argv) {
     if (result)
         goto cleanup;
     tec_init_prefixes();
+
+    double total_start = tec_get_time();
+
     printf("%s================================\n", TEC_BLUE);
     printf("         C Test Runner          \n");
     printf("================================%s\n", TEC_RESET);
@@ -1104,13 +1136,22 @@ int tec_run_all(int argc, char **argv) {
         }
 
         if (current_suite == NULL || strcmp(current_suite, test->suite) != 0) {
-            current_suite = test->suite;
-            const char *display_name = strstr(test->file, "tests/");
-            if (current_suite_ptr && current_suite_ptr->teardown &&
-                !suite_setup_failed) {
-                _fixture_exec_helper(current_suite_ptr->teardown,
-                                     "Suite Teardown");
+            if (current_suite != NULL) {
+                if (current_suite_ptr && current_suite_ptr->teardown &&
+                    !suite_setup_failed) {
+                    _fixture_exec_helper(current_suite_ptr->teardown,
+                                         "Suite Teardown");
+                }
+                double suite_elapsed = tec_get_time() - suite_start;
+                char suite_time_buf[32];
+                tec_format_time(suite_elapsed, suite_time_buf,
+                                sizeof(suite_time_buf));
+                printf("%s  Suite total: %s%s\n", TEC_GRAY, suite_time_buf,
+                       TEC_RESET);
             }
+            current_suite = test->suite;
+            suite_start = tec_get_time();
+            const char *display_name = strstr(test->file, "tests/");
             if (display_name == NULL) {
                 display_name = strstr(test->file, "tests\\");
             }
@@ -1167,14 +1208,18 @@ int tec_run_all(int argc, char **argv) {
                    tec_skip_prefix, test->name);
         } else {
             tec_context.stats.ran_tests++;
+            double test_start = tec_get_time();
 #ifdef __cplusplus
             try {
                 test->func();
-                tec_process_test_result(TEC_INITIAL, test);
+                double test_elapsed = tec_get_time() - test_start;
+                tec_process_test_result(TEC_INITIAL, test, test_elapsed);
             } catch (const tec_assertion_failure &) {
-                tec_process_test_result(TEC_FAIL, test);
+                double test_elapsed = tec_get_time() - test_start;
+                tec_process_test_result(TEC_FAIL, test, test_elapsed);
             } catch (const tec_skip_test &) {
-                tec_process_test_result(TEC_SKIP_e, test);
+                double test_elapsed = tec_get_time() - test_start;
+                tec_process_test_result(TEC_SKIP_e, test, test_elapsed);
             } catch (const std::exception &e) {
                 tec_context.current_failed++;
                 snprintf(tec_context.failure_message,
@@ -1182,7 +1227,8 @@ int tec_run_all(int argc, char **argv) {
                          TEC_PRE_SPACE_SHORT
                          "%sTest threw an unhandled std::exception: %s\n",
                          tec_fail_prefix, e.what());
-                tec_process_test_result(TEC_FAIL, test);
+                double test_elapsed = tec_get_time() - test_start;
+                tec_process_test_result(TEC_FAIL, test, test_elapsed);
             } catch (...) {
                 tec_context.current_failed++;
                 snprintf(tec_context.failure_message,
@@ -1190,7 +1236,8 @@ int tec_run_all(int argc, char **argv) {
                          TEC_PRE_SPACE_SHORT
                          "%sTest threw an unknown C++ exception.\n",
                          tec_fail_prefix);
-                tec_process_test_result(TEC_FAIL, test);
+                double test_elapsed = tec_get_time() - test_start;
+                tec_process_test_result(TEC_FAIL, test, test_elapsed);
             }
 #else
             tec_context.jump_set = true;
@@ -1199,7 +1246,8 @@ int tec_run_all(int argc, char **argv) {
                 test->func();
             }
             tec_context.jump_set = false;
-            tec_process_test_result((JUMP_CODES)jump_val, test);
+            double test_elapsed = tec_get_time() - test_start;
+            tec_process_test_result((JUMP_CODES)jump_val, test, test_elapsed);
 #endif
             if (current_suite_ptr && current_suite_ptr->test_teardown) {
                 _fixture_exec_helper(current_suite_ptr->test_teardown,
@@ -1217,6 +1265,14 @@ int tec_run_all(int argc, char **argv) {
         !suite_setup_failed) {
         _fixture_exec_helper(current_suite_ptr->teardown, "Suite Teardown");
     }
+    double suite_elapsed = tec_get_time() - suite_start;
+    char suite_time_buf[32];
+    tec_format_time(suite_elapsed, suite_time_buf, sizeof(suite_time_buf));
+    printf("%s  Suite total: %s%s\n", TEC_GRAY, suite_time_buf, TEC_RESET);
+
+    double total_elapsed = tec_get_time() - total_start;
+    char total_time_buf[32];
+    tec_format_time(total_elapsed, total_time_buf, sizeof(total_time_buf));
 
     printf("\n%s================================%s\n", TEC_BLUE, TEC_RESET);
     printf("Tests:      "
@@ -1251,6 +1307,7 @@ int tec_run_all(int argc, char **argv) {
            TEC_GREEN, tec_context.stats.passed_assertions, TEC_RESET, TEC_RED,
            tec_context.stats.failed_assertions, TEC_RESET,
            tec_context.stats.total_assertions);
+    printf("Time:       %s%s%s\n", TEC_CYAN, total_time_buf, TEC_RESET);
 
     if (tec_context.stats.failed_tests > 0 ||
         tec_context.stats.xpassed_tests > 0) {
