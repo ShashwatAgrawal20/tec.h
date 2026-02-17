@@ -667,11 +667,32 @@ char tec_pass_prefix[TEC_PREFIX_SIZE];
 char tec_skip_prefix[TEC_PREFIX_SIZE];
 char tec_line_prefix[TEC_PREFIX_SIZE];
 
+#ifdef _WIN32
+double tec_get_time(void) {
+    // we don't care if `QueryPerformanceFrequency` or `QueryPerformanceCounter`
+    // fails, so we don't care about fallback and proper cleanup if something
+    // goes wrong :)
+    // we just pretends that everything will always work just fine :)
+    static LARGE_INTEGER frequency;
+    static int initialized = 0;
+
+    if (!initialized) {
+        QueryPerformanceFrequency(&frequency);
+        initialized = 1;
+    }
+
+    LARGE_INTEGER counter;
+    QueryPerformanceCounter(&counter);
+
+    return (double)counter.QuadPart / (double)frequency.QuadPart;
+}
+#else
 double tec_get_time(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return ts.tv_sec + ts.tv_nsec * 1e-9;
 }
+#endif
 
 void tec_format_time(double seconds, char *buf, size_t buf_size) {
     if (seconds >= 1.0) {
