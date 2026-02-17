@@ -1105,7 +1105,7 @@ bool _fixture_exec_helper(tec_fixture_func_t func, const char *token) {
 
 int tec_run_all(int argc, char **argv) {
     int result = 0;
-    double suite_test_time = 0.0;
+    double suite_start = 0.0;
     const char *current_suite = NULL;
     const tec_suite_t *current_suite_ptr = NULL;
     bool suite_setup_failed = false;
@@ -1142,14 +1142,15 @@ int tec_run_all(int argc, char **argv) {
                     _fixture_exec_helper(current_suite_ptr->teardown,
                                          "Suite Teardown");
                 }
+                double suite_elapsed = tec_get_time() - suite_start;
                 char suite_time_buf[32];
-                tec_format_time(suite_test_time, suite_time_buf,
+                tec_format_time(suite_elapsed, suite_time_buf,
                                 sizeof(suite_time_buf));
                 printf("%s  Suite total: %s%s\n", TEC_GRAY, suite_time_buf,
                        TEC_RESET);
             }
             current_suite = test->suite;
-            suite_test_time = 0.0;
+            suite_start = tec_get_time();
             const char *display_name = strstr(test->file, "tests/");
             if (display_name == NULL) {
                 display_name = strstr(test->file, "tests\\");
@@ -1212,15 +1213,12 @@ int tec_run_all(int argc, char **argv) {
             try {
                 test->func();
                 double test_elapsed = tec_get_time() - test_start;
-                suite_test_time += test_elapsed;
                 tec_process_test_result(TEC_INITIAL, test, test_elapsed);
             } catch (const tec_assertion_failure &) {
                 double test_elapsed = tec_get_time() - test_start;
-                suite_test_time += test_elapsed;
                 tec_process_test_result(TEC_FAIL, test, test_elapsed);
             } catch (const tec_skip_test &) {
                 double test_elapsed = tec_get_time() - test_start;
-                suite_test_time += test_elapsed;
                 tec_process_test_result(TEC_SKIP_e, test, test_elapsed);
             } catch (const std::exception &e) {
                 tec_context.current_failed++;
@@ -1230,7 +1228,6 @@ int tec_run_all(int argc, char **argv) {
                          "%sTest threw an unhandled std::exception: %s\n",
                          tec_fail_prefix, e.what());
                 double test_elapsed = tec_get_time() - test_start;
-                suite_test_time += test_elapsed;
                 tec_process_test_result(TEC_FAIL, test, test_elapsed);
             } catch (...) {
                 tec_context.current_failed++;
@@ -1240,7 +1237,6 @@ int tec_run_all(int argc, char **argv) {
                          "%sTest threw an unknown C++ exception.\n",
                          tec_fail_prefix);
                 double test_elapsed = tec_get_time() - test_start;
-                suite_test_time += test_elapsed;
                 tec_process_test_result(TEC_FAIL, test, test_elapsed);
             }
 #else
@@ -1251,7 +1247,6 @@ int tec_run_all(int argc, char **argv) {
             }
             tec_context.jump_set = false;
             double test_elapsed = tec_get_time() - test_start;
-            suite_test_time += test_elapsed;
             tec_process_test_result((JUMP_CODES)jump_val, test, test_elapsed);
 #endif
             if (current_suite_ptr && current_suite_ptr->test_teardown) {
@@ -1270,8 +1265,9 @@ int tec_run_all(int argc, char **argv) {
         !suite_setup_failed) {
         _fixture_exec_helper(current_suite_ptr->teardown, "Suite Teardown");
     }
+    double suite_elapsed = tec_get_time() - suite_start;
     char suite_time_buf[32];
-    tec_format_time(suite_test_time, suite_time_buf, sizeof(suite_time_buf));
+    tec_format_time(suite_elapsed, suite_time_buf, sizeof(suite_time_buf));
     printf("%s  Suite total: %s%s\n", TEC_GRAY, suite_time_buf, TEC_RESET);
 
     double total_elapsed = tec_get_time() - total_start;
