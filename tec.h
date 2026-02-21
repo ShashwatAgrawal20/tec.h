@@ -1127,6 +1127,9 @@ bool _fixture_exec_helper(tec_fixture_func_t func, const char *token) {
 int tec_run_all(int argc, char **argv) {
     int result = 0;
     double suite_start = 0.0;
+    double total_start = 0.0;
+    double suite_elapsed = 0.0;
+    double total_elapsed = 0.0;
     const char *current_suite = NULL;
     const tec_suite_t *current_suite_ptr = NULL;
     bool suite_setup_failed = false;
@@ -1139,7 +1142,7 @@ int tec_run_all(int argc, char **argv) {
         goto cleanup;
     tec_init_prefixes();
 
-    double total_start = tec_get_time();
+    total_start = tec_get_time();
 
     printf("%s================================\n", TEC_BLUE);
     printf("         C Test Runner          \n");
@@ -1163,7 +1166,7 @@ int tec_run_all(int argc, char **argv) {
                     _fixture_exec_helper(current_suite_ptr->teardown,
                                          "Suite Teardown");
                 }
-                double suite_elapsed = tec_get_time() - suite_start;
+                suite_elapsed = tec_get_time() - suite_start;
                 char suite_time_buf[32];
                 tec_format_time(suite_elapsed, suite_time_buf,
                                 sizeof(suite_time_buf));
@@ -1286,12 +1289,12 @@ int tec_run_all(int argc, char **argv) {
         !suite_setup_failed) {
         _fixture_exec_helper(current_suite_ptr->teardown, "Suite Teardown");
     }
-    double suite_elapsed = tec_get_time() - suite_start;
+    suite_elapsed = tec_get_time() - suite_start;
     char suite_time_buf[32];
     tec_format_time(suite_elapsed, suite_time_buf, sizeof(suite_time_buf));
     printf("%s  Suite total: %s%s\n", TEC_GRAY, suite_time_buf, TEC_RESET);
 
-    double total_elapsed = tec_get_time() - total_start;
+    total_elapsed = tec_get_time() - total_start;
     char total_time_buf[32];
     tec_format_time(total_elapsed, total_time_buf, sizeof(total_time_buf));
 
