@@ -25,6 +25,12 @@ jobs:
         if: runner.os == 'Linux'
         run: make workflow_test
 
+      - name: Force C++ compilation check (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cmake -S . -B build -G "Ninja" -DTEC_FORCE_CPP=ON
+          cmake --build build --target workflow_test
+
       - name: Configure (Windows, MSVC)
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1

@@ -1,6 +1,14 @@
 cmake_minimum_required(VERSION 3.10)
-project(tec.h C)
+project(tec.h C CXX)
+
+option(TEC_FORCE_CPP "Compile sources as C++" OFF)
+
 set(CMAKE_C_STANDARD 23)
+if (TEC_FORCE_CPP)
+    set(CMAKE_CXX_STANDARD 23)
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
+    set(CMAKE_CXX_EXTENSIONS OFF)
+endif()
 
 if(MSVC)
     add_compile_options(/TP /EHsc)
@@ -18,6 +26,13 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     add_executable(test_runner ${TEST_SOURCES} ${SRC_FILES})
     target_include_directories(main PRIVATE include)
     target_include_directories(test_runner PRIVATE include)
+
+    if (TEC_FORCE_CPP)
+        set_source_files_properties(
+            ${SRC_FILES} ${TEST_SOURCES} src/main.c
+            PROPERTIES LANGUAGE CXX
+        )
+    endif()
     add_custom_target(test
         COMMAND $<TARGET_FILE:test_runner>
         DEPENDS test_runner
