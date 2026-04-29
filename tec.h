@@ -53,7 +53,9 @@
 #include <unistd.h>
 #endif
 
-#ifdef __cplusplus
+#if defined(__cplusplus) && (defined(__cpp_exceptions) ||                      \
+                             defined(__EXCEPTIONS) || defined(_CPPUNWIND))
+#define TEC_EXCEPTIONS_ENABLED
 #define TEC_FUCK_MSVC_EH noexcept(false)
 #else
 #define TEC_FUCK_MSVC_EH
@@ -176,7 +178,7 @@ extern char tec_line_prefix[TEC_PREFIX_SIZE];
 #define TEC_AUTO_TYPE __auto_type
 #endif
 
-#ifdef __cplusplus
+#if defined(__cplusplus) && defined(TEC_EXCEPTIONS_ENABLED)
 class tec_assertion_failure : public std::runtime_error {
   public:
     tec_assertion_failure(const char *msg) : std::runtime_error(msg) {}
@@ -543,7 +545,7 @@ inline std::string tec_to_string(char *value) {
         }                                                                      \
     } while (0)
 
-#ifdef __cplusplus
+#if defined(__cplusplus) && defined(TEC_EXCEPTIONS_ENABLED)
 #define TEC_ASSERT_THROWS(statement, exception_type)                           \
     do {                                                                       \
         tec_context.stats.total_assertions++;                                  \
@@ -784,7 +786,7 @@ void _tec_detect_color_support(void) {
 void TEC_POST_FAIL(void) TEC_FUCK_MSVC_EH {
     tec_context.current_failed++;
     tec_context.stats.failed_assertions++;
-#ifdef __cplusplus
+#if defined(__cplusplus) && defined(TEC_EXCEPTIONS_ENABLED)
     throw tec_assertion_failure(tec_context.failure_message);
 #else
     if (tec_context.jump_set)
@@ -797,7 +799,7 @@ void _tec_skip_impl(const char *reason, int line) TEC_FUCK_MSVC_EH {
     snprintf(tec_context.failure_message, TEC_MAX_FAILURE_MESSAGE_LEN,
              TEC_PRE_SPACE "%sSkipped: %s (line %d)\n", tec_skip_prefix,
              _reason, line);
-#ifdef __cplusplus
+#if defined(__cplusplus) && defined(TEC_EXCEPTIONS_ENABLED)
     throw tec_skip_test(tec_context.failure_message);
 #else
     if (tec_context.jump_set)
@@ -1096,7 +1098,7 @@ bool tec_should_run(const tec_entry_t *test) {
 bool _fixture_exec_helper(tec_fixture_func_t func, const char *token) {
     bool has_failed = false;
     bool should_print = token == NULL ? false : true;
-#ifdef __cplusplus
+#if defined(__cplusplus) && defined(TEC_EXCEPTIONS_ENABLED)
     try {
         func();
     } catch (...) {
@@ -1233,7 +1235,7 @@ int tec_run_all(int argc, char **argv) {
         } else {
             tec_context.stats.ran_tests++;
             double test_start = tec_get_time();
-#ifdef __cplusplus
+#if defined(__cplusplus) && defined(TEC_EXCEPTIONS_ENABLED)
             try {
                 test->func();
                 double test_elapsed = tec_get_time() - test_start;

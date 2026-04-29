@@ -35,6 +35,7 @@ your way so you can just write tests. Zero-setup unit testing is just one `#incl
     - [C: TEC_TRY_BLOCK](#c-the-tec_try_block)
     - [C++: try-catch](#c-trycatch)
 - [C++ Integration](#c-integration)
+  - [Exception Handling Modes](#exception-handling-modes)
   - [Exception Handling](#exception-handling)
   - [Testing for Exceptions](#testing-for-exceptions)
   - [Resource Management (RAII)](#resource-management-raii)
@@ -368,10 +369,11 @@ TEC(math, test_floating_point) {
 
 ### Resource Cleanup
 When an assertion fails, `tec.h` immediately stops the test. In C, this is done
-with `longjmp`, and in C++, an `exception` is thrown. This can cause resource leaks
-if the test allocated memory or opened files.
+with `longjmp`, and in C++, an `exception` is thrown (unless compiled with
+`-fno-exceptions`, in which case `longjmp` is used).
 
 > See examples for **[C: TEC_TRY_BLOCK](#c-the-tec_try_block)** and **[C++: try-catch](#c-trycatch)**.
+> When exceptions are disabled in C++ (via `-fno-exceptions`), you can use `TEC_TRY_BLOCK` just like in C.
 
 #### C: The `TEC_TRY_BLOCK`
 To ensure cleanup code runs, you can wrap your assertions in a `TEC_TRY_BLOCK`.
@@ -412,10 +414,23 @@ See **[C++ Integration → Exception Handling](#exception-handling)** for a full
 automatically switches from `setjmp/longjmp` to throwing `exceptions` on assertion
 failures, enabling modern C++ practices.
 
+### Exception Handling Modes
+By default, `tec.h` auto-detects whether C++ exceptions are available using
+compiler-defined macros (`__cpp_exceptions`, `__EXCEPTIONS`, or `_CPPUNWIND`).
+
+When compiling with `-fno-exceptions`, the library automatically falls back to
+`setjmp`/`longjmp` (same as C mode), so no special configuration is needed.
+
+This makes it seamless to use `tec.h` in projects that disable exceptions globally.
+
 ### Exception Handling
-An assertion failure throws a `tec_assertion_failure` exception. You can use
-standard `try...catch` blocks for resource cleanup, just as you would in any other
-C++ code.
+An assertion failure throws a `tec_assertion_failure` exception (when exceptions
+are enabled). You can use standard `try...catch` blocks for resource cleanup,
+just as you would in any other C++ code.
+
+> [!NOTE]
+> When compiled with `-fno-exceptions`, `tec.h` uses `setjmp`/`longjmp`
+> instead (like in C mode).
 
 ```cpp
 TEC(cpp_style, manual_cleanup) {
@@ -439,7 +454,8 @@ TEC(cpp_style, manual_cleanup) {
 
 ### Testing for Exceptions
 You can verify that a piece of code throws the correct type of exception using
-`TEC_ASSERT_THROWS`. This is only available in C++.
+`TEC_ASSERT_THROWS`. This is only available in C++ **with exceptions enabled**
+(i.e., when not compiled with `-fno-exceptions`).
 
 The test will pass if the statement throws an exception of the exact type
 specified. It will fail if it throws a different type of exception, or no
